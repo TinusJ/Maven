@@ -1,5 +1,6 @@
 package com.tinusj.maven.classpath;
 
+import org.apache.maven.artifact.DependencyResolutionRequiredException;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -52,6 +53,8 @@ public class ClasspathMojo extends AbstractMojo {
 
     /**
      * Whether to include project dependencies in the classpath file.
+     * When enabled, uses runtime classpath elements which include all dependencies
+     * needed to run the application.
      */
     @Parameter(property = "classpath.includeDependencies", defaultValue = "false")
     private boolean includeDependencies;
@@ -112,8 +115,8 @@ public class ClasspathMojo extends AbstractMojo {
                         getLog().debug("Added dependency: " + file.getAbsolutePath());
                     }
                 }
-            } catch (Exception e) {
-                throw new MojoExecutionException("Failed to get runtime classpath elements", e);
+            } catch (DependencyResolutionRequiredException e) {
+                throw new MojoExecutionException("Failed to resolve runtime classpath elements", e);
             }
         }
 
