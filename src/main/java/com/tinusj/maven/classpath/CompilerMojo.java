@@ -16,13 +16,13 @@ import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
 import java.io.File;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -335,13 +335,23 @@ public class CompilerMojo extends AbstractMojo {
         List<String> args = buildEcjArguments(sourceFiles, classpath);
         getLog().debug("ECJ arguments: " + args);
 
+        URLClassLoader ecjClassLoader = null;
         try {
-            Class<?> ecjMainClass = loadEcjMainClass();
-            invokeEcjCompiler(ecjMainClass, args);
+            EcjClassLoadResult result = loadEcjMainClass();
+            ecjClassLoader = result.classLoader;
+            invokeEcjCompiler(result.ecjMainClass, args);
         } catch (MojoExecutionException e) {
             throw e;
         } catch (Exception e) {
             throw new MojoExecutionException("Error during ECJ compilation", e);
+        } finally {
+            if (ecjClassLoader != null) {
+                try {
+                    ecjClassLoader.close();
+                } catch (IOException e) {
+                    getLog().debug("Failed to close ECJ classloader: " + e.getMessage());
+                }
+            }
         }
     }
 
@@ -395,17 +405,32 @@ public class CompilerMojo extends AbstractMojo {
     }
 
     /**
-     * Loads the ECJ Main class from the plugin's classpath.
+     * Result of loading the ECJ Main class, including an optional classloader that must be closed.
      */
-    Class<?> loadEcjMainClass() throws MojoExecutionException {
+    static class EcjClassLoadResult {
+        final Class<?> ecjMainClass;
+        final URLClassLoader classLoader;
+
+        EcjClassLoadResult(Class<?> ecjMainClass, URLClassLoader classLoader) {
+            this.ecjMainClass = ecjMainClass;
+            this.classLoader = classLoader;
+        }
+    }
+
+    /**
+     * Loads the ECJ Main class from the plugin's classpath.
+     * Returns a result containing the loaded class and an optional classloader that must be closed.
+     */
+    EcjClassLoadResult loadEcjMainClass() throws MojoExecutionException {
         // First try to load from the current classloader (plugin dependencies)
         try {
-            return Class.forName(ECJ_MAIN_CLASS);
+            return new EcjClassLoadResult(Class.forName(ECJ_MAIN_CLASS), null);
         } catch (ClassNotFoundException e) {
             getLog().debug("ECJ not found in current classloader, trying plugin artifacts...");
         }
 
         // Try to load from plugin artifacts
+        URLClassLoader classLoader = null;
         try {
             List<URL> urls = new ArrayList<>();
             for (Artifact artifact : project.getPluginArtifacts()) {
@@ -415,11 +440,19 @@ public class CompilerMojo extends AbstractMojo {
             }
 
             if (!urls.isEmpty()) {
-                URLClassLoader classLoader = new URLClassLoader(
+                classLoader = new URLClassLoader(
                         urls.toArray(new URL[0]), getClass().getClassLoader());
-                return classLoader.loadClass(ECJ_MAIN_CLASS);
+                Class<?> ecjMainClass = classLoader.loadClass(ECJ_MAIN_CLASS);
+                return new EcjClassLoadResult(ecjMainClass, classLoader);
             }
         } catch (Exception e) {
+            if (classLoader != null) {
+                try {
+                    classLoader.close();
+                } catch (IOException ioe) {
+                    getLog().debug("Failed to close classloader: " + ioe.getMessage());
+                }
+            }
             getLog().debug("Failed to load ECJ from plugin artifacts: " + e.getMessage());
         }
 
