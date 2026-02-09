@@ -225,7 +225,7 @@ public class CompilerMojo extends AbstractMojo {
         // Compile each module
         String compilerType = compiler.toLowerCase().trim();
         for (CompilerModule module : resolvedModules) {
-            compileModule(module, allSourceDirs, dependencyClasspath, compilerType);
+            compileModule(module, resolvedModules, allSourceDirs, dependencyClasspath, compilerType);
         }
     }
 
@@ -287,10 +287,11 @@ public class CompilerMojo extends AbstractMojo {
      */
     List<String> collectAllSourceDirectories(List<CompilerModule> moduleList) {
         List<String> allDirs = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
         for (CompilerModule module : moduleList) {
             List<String> validDirs = validateDirectories(module.getSourceDirectories());
             for (String dir : validDirs) {
-                if (!allDirs.contains(dir)) {
+                if (seen.add(dir)) {
                     allDirs.add(dir);
                     getLog().info("Sourcepath entry: " + dir);
                 }
@@ -303,7 +304,8 @@ public class CompilerMojo extends AbstractMojo {
      * Compiles a single module. All modules' source directories are passed as sourcepath
      * to resolve circular dependencies, but only this module's source files are compiled.
      */
-    void compileModule(CompilerModule module, List<String> allSourceDirs,
+    void compileModule(CompilerModule module, List<CompilerModule> allModules,
+                       List<String> allSourceDirs,
                        String dependencyClasspath, String compilerType)
             throws MojoExecutionException {
         File moduleOutputDir = module.getOutputDirectory();
@@ -326,7 +328,7 @@ public class CompilerMojo extends AbstractMojo {
         }
 
         // Build the full classpath: all module output directories + dependency classpath
-        String classpath = buildModuleClasspath(dependencyClasspath);
+        String classpath = buildModuleClasspath(allModules, dependencyClasspath);
 
         // Build the sourcepath: all modules' source directories
         String sourcepath = buildSourcepath(allSourceDirs);
@@ -394,12 +396,10 @@ public class CompilerMojo extends AbstractMojo {
      * Builds the full module classpath by combining all module output directories
      * with the dependency classpath.
      */
-    String buildModuleClasspath(String dependencyClasspath) {
+    String buildModuleClasspath(List<CompilerModule> resolvedModules, String dependencyClasspath) {
         List<String> elements = new ArrayList<>();
 
         // Add all module output directories to classpath
-        List<CompilerModule> resolvedModules = (modules != null && !modules.isEmpty())
-                ? modules : new ArrayList<CompilerModule>();
         for (CompilerModule m : resolvedModules) {
             if (m.getOutputDirectory() != null) {
                 elements.add(m.getOutputDirectory().getAbsolutePath());
