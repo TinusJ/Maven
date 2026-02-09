@@ -28,21 +28,40 @@ import java.util.List;
 /**
  * Maven Mojo that compiles Java sources using either javac or ECJ (Eclipse Compiler for Java).
  * <p>
- * This mojo builds the classpath from project dependencies and compiles Java source files.
+ * Supports a module-based approach where each module defines its own source directories,
+ * resource directories, and output directory. All modules' source directories are made
+ * available on the sourcepath so that circular dependencies between modules can be resolved,
+ * while each module's source files are compiled only into its own output directory.
+ * </p>
+ * <p>
  * When using ECJ, a properties file can be supplied to configure compiler settings,
  * which addresses the limitation of the standard maven-compiler-plugin.
  * </p>
  * <p>
- * Usage with javac (default):
+ * Usage with modules:
  * <pre>
  * &lt;plugin&gt;
  *     &lt;groupId&gt;com.tinusj.maven&lt;/groupId&gt;
  *     &lt;artifactId&gt;classpath-plugin&lt;/artifactId&gt;
- *     &lt;executions&gt;
- *         &lt;execution&gt;
- *             &lt;goals&gt;&lt;goal&gt;compile&lt;/goal&gt;&lt;/goals&gt;
- *         &lt;/execution&gt;
- *     &lt;/executions&gt;
+ *     &lt;configuration&gt;
+ *         &lt;modules&gt;
+ *             &lt;module&gt;
+ *                 &lt;sourceDirectories&gt;
+ *                     &lt;sourceDirectory&gt;module-a/src/main/java&lt;/sourceDirectory&gt;
+ *                 &lt;/sourceDirectories&gt;
+ *                 &lt;resourceDirectories&gt;
+ *                     &lt;resourceDirectory&gt;module-a/src/main/resources&lt;/resourceDirectory&gt;
+ *                 &lt;/resourceDirectories&gt;
+ *                 &lt;outputDirectory&gt;module-a/target/classes&lt;/outputDirectory&gt;
+ *             &lt;/module&gt;
+ *             &lt;module&gt;
+ *                 &lt;sourceDirectories&gt;
+ *                     &lt;sourceDirectory&gt;module-b/src/main/java&lt;/sourceDirectory&gt;
+ *                 &lt;/sourceDirectories&gt;
+ *                 &lt;outputDirectory&gt;module-b/target/classes&lt;/outputDirectory&gt;
+ *             &lt;/module&gt;
+ *         &lt;/modules&gt;
+ *     &lt;/configuration&gt;
  * &lt;/plugin&gt;
  * </pre>
  * </p>
@@ -85,14 +104,16 @@ public class CompilerMojo extends AbstractMojo {
 
     /**
      * The Java source version (e.g. "1.8", "11", "17").
+     * Defaults to the project's maven.compiler.source property.
      */
-    @Parameter(property = "compiler.source", defaultValue = "1.8")
+    @Parameter(property = "compiler.source", defaultValue = "${maven.compiler.source}")
     private String source;
 
     /**
      * The Java target version (e.g. "1.8", "11", "17").
+     * Defaults to the project's maven.compiler.target property.
      */
-    @Parameter(property = "compiler.target", defaultValue = "1.8")
+    @Parameter(property = "compiler.target", defaultValue = "${maven.compiler.target}")
     private String target;
 
     /**
@@ -104,18 +125,17 @@ public class CompilerMojo extends AbstractMojo {
     private File propertiesFile;
 
     /**
-     * List of source directories to compile.
-     * Defaults to the project's compile source roots.
+     * List of modules to compile. Each module defines its own source directories,
+     * resource directories, and output directory. All modules' source directories
+     * are available on the sourcepath for resolving circular dependencies, but each
+     * module's source code is compiled only into its own output directory.
+     * <p>
+     * If no modules are configured, defaults to a single module based on the
+     * project's compile source roots and build output directory.
+     * </p>
      */
-    @Parameter(property = "compiler.sourceDirectories")
-    private List<String> sourceDirectories;
-
-    /**
-     * The output directory for compiled classes.
-     */
-    @Parameter(property = "compiler.outputDirectory",
-            defaultValue = "${project.build.outputDirectory}")
-    private File outputDirectory;
+    @Parameter
+    private List<CompilerModule> modules;
 
     /**
      * Whether to show compilation warnings.
@@ -139,65 +159,186 @@ public class CompilerMojo extends AbstractMojo {
     private static final String COMPILER_ECJ = "ecj";
     private static final String ECJ_MAIN_CLASS = "org.eclipse.jdt.internal.compiler.batch.Main";
 
+    /**
+     * Represents a compilation module with its own source directories,
+     * resource directories, and output directory.
+     */
+    public static class CompilerModule {
+        /**
+         * Source directories for this module.
+         */
+        @Parameter
+        private List<String> sourceDirectories;
+
+        /**
+         * Resource directories for this module.
+         */
+        @Parameter
+        private List<String> resourceDirectories;
+
+        /**
+         * Output directory for compiled classes of this module.
+         */
+        @Parameter
+        private File outputDirectory;
+
+        public List<String> getSourceDirectories() {
+            return sourceDirectories;
+        }
+
+        public void setSourceDirectories(List<String> sourceDirectories) {
+            this.sourceDirectories = sourceDirectories;
+        }
+
+        public List<String> getResourceDirectories() {
+            return resourceDirectories;
+        }
+
+        public void setResourceDirectories(List<String> resourceDirectories) {
+            this.resourceDirectories = resourceDirectories;
+        }
+
+        public File getOutputDirectory() {
+            return outputDirectory;
+        }
+
+        public void setOutputDirectory(File outputDirectory) {
+            this.outputDirectory = outputDirectory;
+        }
+    }
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
-        // Resolve source directories
-        List<String> sourceDirs = getSourceDirectories();
-        if (sourceDirs.isEmpty()) {
-            getLog().warn("No source directories found, skipping compilation.");
+        // Resolve modules - default to a single module from project if none configured
+        List<CompilerModule> resolvedModules = resolveModules();
+        if (resolvedModules.isEmpty()) {
+            getLog().warn("No modules with valid source directories found, skipping compilation.");
             return;
         }
 
-        // Collect Java source files
-        List<File> sourceFiles = collectJavaFiles(sourceDirs);
-        if (sourceFiles.isEmpty()) {
-            getLog().info("No Java source files found, skipping compilation.");
-            return;
-        }
-        getLog().info("Found " + sourceFiles.size() + " source file(s) to compile.");
+        // Collect ALL source directories across all modules (for sourcepath / circular deps)
+        List<String> allSourceDirs = collectAllSourceDirectories(resolvedModules);
 
-        // Build classpath
-        String classpath = buildClasspath();
+        // Build dependency classpath (project dependencies)
+        String dependencyClasspath = buildDependencyClasspath();
 
-        // Create output directory
-        if (!outputDirectory.exists() && !outputDirectory.mkdirs()) {
-            throw new MojoExecutionException(
-                    "Failed to create output directory: " + outputDirectory.getAbsolutePath());
-        }
-
-        // Compile
+        // Compile each module
         String compilerType = compiler.toLowerCase().trim();
-        if (COMPILER_JAVAC.equals(compilerType)) {
-            compileWithJavac(sourceFiles, classpath);
-        } else if (COMPILER_ECJ.equals(compilerType)) {
-            compileWithEcj(sourceFiles, classpath);
-        } else {
-            throw new MojoExecutionException(
-                    "Unsupported compiler type: " + compiler + ". Use 'javac' or 'ecj'.");
+        for (CompilerModule module : resolvedModules) {
+            compileModule(module, allSourceDirs, dependencyClasspath, compilerType);
         }
     }
 
     /**
-     * Resolves source directories from configuration or project defaults.
+     * Resolves the list of modules. If no modules are explicitly configured,
+     * creates a default module from the project's compile source roots and output directory.
      */
-    List<String> getSourceDirectories() {
-        List<String> dirs = new ArrayList<>();
-        List<String> candidates = (sourceDirectories != null && !sourceDirectories.isEmpty())
-                ? sourceDirectories
-                : project.getCompileSourceRoots();
+    List<CompilerModule> resolveModules() {
+        List<CompilerModule> resolved = new ArrayList<>();
 
-        if (candidates != null) {
-            for (String dir : candidates) {
-                File f = new File(dir);
-                if (f.exists() && f.isDirectory()) {
-                    dirs.add(f.getAbsolutePath());
-                    getLog().info("Using source directory: " + f.getAbsolutePath());
+        if (modules != null && !modules.isEmpty()) {
+            for (CompilerModule module : modules) {
+                List<String> validDirs = validateDirectories(module.getSourceDirectories());
+                if (!validDirs.isEmpty()) {
+                    resolved.add(module);
                 } else {
-                    getLog().warn("Source directory does not exist: " + dir);
+                    getLog().warn("Module has no valid source directories, skipping.");
+                }
+            }
+        } else {
+            // Default: single module from project
+            CompilerModule defaultModule = new CompilerModule();
+            List<String> projectSources = project.getCompileSourceRoots();
+            if (projectSources != null && !projectSources.isEmpty()) {
+                defaultModule.setSourceDirectories(projectSources);
+                defaultModule.setOutputDirectory(new File(project.getBuild().getOutputDirectory()));
+                List<String> validDirs = validateDirectories(defaultModule.getSourceDirectories());
+                if (!validDirs.isEmpty()) {
+                    resolved.add(defaultModule);
                 }
             }
         }
-        return dirs;
+
+        return resolved;
+    }
+
+    /**
+     * Validates directories exist and returns only existing ones.
+     */
+    List<String> validateDirectories(List<String> dirs) {
+        List<String> valid = new ArrayList<>();
+        if (dirs != null) {
+            for (String dir : dirs) {
+                File f = new File(dir);
+                if (f.exists() && f.isDirectory()) {
+                    valid.add(f.getAbsolutePath());
+                } else {
+                    getLog().warn("Directory does not exist: " + dir);
+                }
+            }
+        }
+        return valid;
+    }
+
+    /**
+     * Collects all source directories across all modules.
+     * This is used as the sourcepath so all modules can resolve each other's types
+     * (supporting circular dependencies).
+     */
+    List<String> collectAllSourceDirectories(List<CompilerModule> moduleList) {
+        List<String> allDirs = new ArrayList<>();
+        for (CompilerModule module : moduleList) {
+            List<String> validDirs = validateDirectories(module.getSourceDirectories());
+            for (String dir : validDirs) {
+                if (!allDirs.contains(dir)) {
+                    allDirs.add(dir);
+                    getLog().info("Sourcepath entry: " + dir);
+                }
+            }
+        }
+        return allDirs;
+    }
+
+    /**
+     * Compiles a single module. All modules' source directories are passed as sourcepath
+     * to resolve circular dependencies, but only this module's source files are compiled.
+     */
+    void compileModule(CompilerModule module, List<String> allSourceDirs,
+                       String dependencyClasspath, String compilerType)
+            throws MojoExecutionException {
+        File moduleOutputDir = module.getOutputDirectory();
+        List<String> moduleSourceDirs = validateDirectories(module.getSourceDirectories());
+
+        // Collect Java source files for this module only
+        List<File> sourceFiles = collectJavaFiles(moduleSourceDirs);
+        if (sourceFiles.isEmpty()) {
+            getLog().info("No Java source files found in module, skipping.");
+            return;
+        }
+
+        getLog().info("Compiling module: " + sourceFiles.size() + " source file(s) -> "
+                + moduleOutputDir.getAbsolutePath());
+
+        // Create output directory
+        if (!moduleOutputDir.exists() && !moduleOutputDir.mkdirs()) {
+            throw new MojoExecutionException(
+                    "Failed to create output directory: " + moduleOutputDir.getAbsolutePath());
+        }
+
+        // Build the full classpath: all module output directories + dependency classpath
+        String classpath = buildModuleClasspath(dependencyClasspath);
+
+        // Build the sourcepath: all modules' source directories
+        String sourcepath = buildSourcepath(allSourceDirs);
+
+        if (COMPILER_JAVAC.equals(compilerType)) {
+            compileWithJavac(sourceFiles, classpath, sourcepath, moduleOutputDir);
+        } else if (COMPILER_ECJ.equals(compilerType)) {
+            compileWithEcj(sourceFiles, classpath, sourcepath, moduleOutputDir);
+        } else {
+            throw new MojoExecutionException(
+                    "Unsupported compiler type: " + compiler + ". Use 'javac' or 'ecj'.");
+        }
     }
 
     /**
@@ -228,7 +369,7 @@ public class CompilerMojo extends AbstractMojo {
     /**
      * Builds a classpath string from project compile dependencies.
      */
-    String buildClasspath() throws MojoExecutionException {
+    String buildDependencyClasspath() throws MojoExecutionException {
         List<String> elements = new ArrayList<>();
         try {
             List<String> compileElements = project.getCompileClasspathElements();
@@ -237,7 +378,7 @@ public class CompilerMojo extends AbstractMojo {
                     File file = new File(element);
                     if (file.exists()) {
                         elements.add(file.getAbsolutePath());
-                        getLog().debug("Classpath entry: " + file.getAbsolutePath());
+                        getLog().debug("Dependency classpath entry: " + file.getAbsolutePath());
                     }
                 }
             }
@@ -246,15 +387,46 @@ public class CompilerMojo extends AbstractMojo {
         }
 
         String separator = System.getProperty("path.separator");
-        String classpath = String.join(separator, elements);
-        getLog().debug("Full classpath: " + classpath);
-        return classpath;
+        return String.join(separator, elements);
+    }
+
+    /**
+     * Builds the full module classpath by combining all module output directories
+     * with the dependency classpath.
+     */
+    String buildModuleClasspath(String dependencyClasspath) {
+        List<String> elements = new ArrayList<>();
+
+        // Add all module output directories to classpath
+        List<CompilerModule> resolvedModules = (modules != null && !modules.isEmpty())
+                ? modules : new ArrayList<CompilerModule>();
+        for (CompilerModule m : resolvedModules) {
+            if (m.getOutputDirectory() != null) {
+                elements.add(m.getOutputDirectory().getAbsolutePath());
+            }
+        }
+
+        if (dependencyClasspath != null && !dependencyClasspath.isEmpty()) {
+            elements.add(dependencyClasspath);
+        }
+
+        String separator = System.getProperty("path.separator");
+        return String.join(separator, elements);
+    }
+
+    /**
+     * Builds a sourcepath string from all source directories.
+     */
+    String buildSourcepath(List<String> allSourceDirs) {
+        String separator = System.getProperty("path.separator");
+        return String.join(separator, allSourceDirs);
     }
 
     /**
      * Compiles source files using the standard javac compiler via javax.tools API.
      */
-    void compileWithJavac(List<File> sourceFiles, String classpath)
+    void compileWithJavac(List<File> sourceFiles, String classpath,
+                          String sourcepath, File outputDir)
             throws MojoExecutionException {
         getLog().info("Compiling with javac (source=" + source + ", target=" + target + ")");
 
@@ -271,7 +443,7 @@ public class CompilerMojo extends AbstractMojo {
             Iterable<? extends JavaFileObject> compilationUnits =
                     fileManager.getJavaFileObjectsFromFiles(sourceFiles);
 
-            List<String> options = buildJavacOptions(classpath);
+            List<String> options = buildJavacOptions(classpath, sourcepath, outputDir);
             getLog().debug("Javac options: " + options);
 
             JavaCompiler.CompilationTask task =
@@ -294,18 +466,30 @@ public class CompilerMojo extends AbstractMojo {
     /**
      * Builds the option list for javac compilation.
      */
-    List<String> buildJavacOptions(String classpath) {
+    List<String> buildJavacOptions(String classpath, String sourcepath, File outputDir) {
         List<String> options = new ArrayList<>();
-        options.add("-source");
-        options.add(source);
-        options.add("-target");
-        options.add(target);
+
+        if (source != null && !source.isEmpty()) {
+            options.add("-source");
+            options.add(source);
+        }
+
+        if (target != null && !target.isEmpty()) {
+            options.add("-target");
+            options.add(target);
+        }
+
         options.add("-d");
-        options.add(outputDirectory.getAbsolutePath());
+        options.add(outputDir.getAbsolutePath());
 
         if (classpath != null && !classpath.isEmpty()) {
             options.add("-classpath");
             options.add(classpath);
+        }
+
+        if (sourcepath != null && !sourcepath.isEmpty()) {
+            options.add("-sourcepath");
+            options.add(sourcepath);
         }
 
         if (!showWarnings) {
@@ -328,11 +512,12 @@ public class CompilerMojo extends AbstractMojo {
      * ECJ must be available on the plugin's classpath (added as a plugin dependency).
      * Supports passing a properties file for ECJ configuration.
      */
-    void compileWithEcj(List<File> sourceFiles, String classpath)
+    void compileWithEcj(List<File> sourceFiles, String classpath,
+                        String sourcepath, File outputDir)
             throws MojoExecutionException {
         getLog().info("Compiling with ECJ (source=" + source + ", target=" + target + ")");
 
-        List<String> args = buildEcjArguments(sourceFiles, classpath);
+        List<String> args = buildEcjArguments(sourceFiles, classpath, sourcepath, outputDir);
         getLog().debug("ECJ arguments: " + args);
 
         URLClassLoader ecjClassLoader = null;
@@ -358,19 +543,31 @@ public class CompilerMojo extends AbstractMojo {
     /**
      * Builds the argument list for ECJ compilation.
      */
-    List<String> buildEcjArguments(List<File> sourceFiles, String classpath) {
+    List<String> buildEcjArguments(List<File> sourceFiles, String classpath,
+                                   String sourcepath, File outputDir) {
         List<String> args = new ArrayList<>();
 
-        args.add("-source");
-        args.add(source);
-        args.add("-target");
-        args.add(target);
+        if (source != null && !source.isEmpty()) {
+            args.add("-source");
+            args.add(source);
+        }
+
+        if (target != null && !target.isEmpty()) {
+            args.add("-target");
+            args.add(target);
+        }
+
         args.add("-d");
-        args.add(outputDirectory.getAbsolutePath());
+        args.add(outputDir.getAbsolutePath());
 
         if (classpath != null && !classpath.isEmpty()) {
             args.add("-classpath");
             args.add(classpath);
+        }
+
+        if (sourcepath != null && !sourcepath.isEmpty()) {
+            args.add("-sourcepath");
+            args.add(sourcepath);
         }
 
         // ECJ properties file support - this is the key feature

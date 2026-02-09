@@ -1,7 +1,7 @@
 package com.tinusj.maven.classpath;
 
+import org.apache.maven.model.Build;
 import org.apache.maven.plugin.MojoExecutionException;
-import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.project.MavenProject;
 import org.junit.Before;
 import org.junit.Rule;
@@ -12,8 +12,8 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static org.junit.Assert.*;
@@ -35,46 +35,99 @@ public class CompilerMojoTest {
         sourceDir = tempFolder.newFolder("src");
         outputDir = tempFolder.newFolder("classes");
 
-        // Set up a mock project
+        // Set up a mock project with maven.compiler.source/target properties
         MavenProject project = new MavenProject();
         project.addCompileSourceRoot(sourceDir.getAbsolutePath());
+        Build build = new Build();
+        build.setOutputDirectory(outputDir.getAbsolutePath());
+        project.setBuild(build);
+        project.getProperties().setProperty("maven.compiler.source", "1.8");
+        project.getProperties().setProperty("maven.compiler.target", "1.8");
+
         setField(mojo, "project", project);
         setField(mojo, "compiler", "javac");
         setField(mojo, "source", "1.8");
         setField(mojo, "target", "1.8");
-        setField(mojo, "outputDirectory", outputDir);
         setField(mojo, "showWarnings", false);
         setField(mojo, "showDeprecation", false);
     }
 
     @Test
-    public void testGetSourceDirectoriesFromProject() throws Exception {
-        List<String> dirs = mojo.getSourceDirectories();
-        assertEquals(1, dirs.size());
-        assertEquals(sourceDir.getAbsolutePath(), dirs.get(0));
+    public void testResolveModulesDefaultsToProject() throws Exception {
+        List<CompilerMojo.CompilerModule> resolved = mojo.resolveModules();
+        assertEquals(1, resolved.size());
+        assertEquals(outputDir.getAbsolutePath(),
+                resolved.get(0).getOutputDirectory().getAbsolutePath());
     }
 
     @Test
-    public void testGetSourceDirectoriesCustom() throws Exception {
-        File customDir = tempFolder.newFolder("custom-src");
-        setField(mojo, "sourceDirectories", Arrays.asList(customDir.getAbsolutePath()));
+    public void testResolveModulesExplicit() throws Exception {
+        File srcA = tempFolder.newFolder("module-a-src");
+        File outA = tempFolder.newFolder("module-a-out");
+        File srcB = tempFolder.newFolder("module-b-src");
+        File outB = tempFolder.newFolder("module-b-out");
 
-        List<String> dirs = mojo.getSourceDirectories();
-        assertEquals(1, dirs.size());
-        assertEquals(customDir.getAbsolutePath(), dirs.get(0));
+        CompilerMojo.CompilerModule modA = new CompilerMojo.CompilerModule();
+        modA.setSourceDirectories(Arrays.asList(srcA.getAbsolutePath()));
+        modA.setOutputDirectory(outA);
+
+        CompilerMojo.CompilerModule modB = new CompilerMojo.CompilerModule();
+        modB.setSourceDirectories(Arrays.asList(srcB.getAbsolutePath()));
+        modB.setOutputDirectory(outB);
+
+        setField(mojo, "modules", Arrays.asList(modA, modB));
+
+        List<CompilerMojo.CompilerModule> resolved = mojo.resolveModules();
+        assertEquals(2, resolved.size());
     }
 
     @Test
-    public void testGetSourceDirectoriesNonExistent() throws Exception {
-        setField(mojo, "sourceDirectories", Arrays.asList("/nonexistent/path"));
+    public void testResolveModulesSkipsInvalidSourceDirs() throws Exception {
+        CompilerMojo.CompilerModule mod = new CompilerMojo.CompilerModule();
+        mod.setSourceDirectories(Arrays.asList("/nonexistent/path"));
+        mod.setOutputDirectory(outputDir);
 
-        List<String> dirs = mojo.getSourceDirectories();
-        assertTrue(dirs.isEmpty());
+        setField(mojo, "modules", Arrays.asList(mod));
+
+        List<CompilerMojo.CompilerModule> resolved = mojo.resolveModules();
+        assertTrue(resolved.isEmpty());
+    }
+
+    @Test
+    public void testCollectAllSourceDirectories() throws Exception {
+        File srcA = tempFolder.newFolder("mod-a");
+        File srcB = tempFolder.newFolder("mod-b");
+
+        CompilerMojo.CompilerModule modA = new CompilerMojo.CompilerModule();
+        modA.setSourceDirectories(Arrays.asList(srcA.getAbsolutePath()));
+        modA.setOutputDirectory(outputDir);
+
+        CompilerMojo.CompilerModule modB = new CompilerMojo.CompilerModule();
+        modB.setSourceDirectories(Arrays.asList(srcB.getAbsolutePath()));
+        modB.setOutputDirectory(outputDir);
+
+        List<String> allDirs = mojo.collectAllSourceDirectories(Arrays.asList(modA, modB));
+        assertEquals(2, allDirs.size());
+        assertTrue(allDirs.contains(srcA.getAbsolutePath()));
+        assertTrue(allDirs.contains(srcB.getAbsolutePath()));
+    }
+
+    @Test
+    public void testCollectAllSourceDirectoriesNoDuplicates() throws Exception {
+        CompilerMojo.CompilerModule modA = new CompilerMojo.CompilerModule();
+        modA.setSourceDirectories(Arrays.asList(sourceDir.getAbsolutePath()));
+        modA.setOutputDirectory(outputDir);
+
+        CompilerMojo.CompilerModule modB = new CompilerMojo.CompilerModule();
+        modB.setSourceDirectories(Arrays.asList(sourceDir.getAbsolutePath()));
+        modB.setOutputDirectory(outputDir);
+
+        List<String> allDirs = mojo.collectAllSourceDirectories(Arrays.asList(modA, modB));
+        assertEquals(1, allDirs.size());
     }
 
     @Test
     public void testCollectJavaFiles() throws Exception {
-        // Create some java files
         createFile(new File(sourceDir, "Hello.java"), "public class Hello {}");
         createFile(new File(sourceDir, "readme.txt"), "not a java file");
 
@@ -94,7 +147,7 @@ public class CompilerMojoTest {
 
     @Test
     public void testBuildJavacOptions() throws Exception {
-        List<String> options = mojo.buildJavacOptions("/some/classpath.jar");
+        List<String> options = mojo.buildJavacOptions("/some/classpath.jar", "/some/sourcepath", outputDir);
 
         assertTrue(options.contains("-source"));
         assertTrue(options.contains("1.8"));
@@ -103,6 +156,8 @@ public class CompilerMojoTest {
         assertTrue(options.contains(outputDir.getAbsolutePath()));
         assertTrue(options.contains("-classpath"));
         assertTrue(options.contains("/some/classpath.jar"));
+        assertTrue(options.contains("-sourcepath"));
+        assertTrue(options.contains("/some/sourcepath"));
         assertTrue(options.contains("-nowarn"));
         assertFalse(options.contains("-deprecation"));
     }
@@ -112,7 +167,7 @@ public class CompilerMojoTest {
         setField(mojo, "showWarnings", true);
         setField(mojo, "showDeprecation", true);
 
-        List<String> options = mojo.buildJavacOptions("/some/classpath.jar");
+        List<String> options = mojo.buildJavacOptions("/some/classpath.jar", "", outputDir);
         assertFalse(options.contains("-nowarn"));
         assertTrue(options.contains("-deprecation"));
     }
@@ -121,7 +176,7 @@ public class CompilerMojoTest {
     public void testBuildJavacOptionsWithCompilerArguments() throws Exception {
         setField(mojo, "compilerArguments", Arrays.asList("-Xlint:all", "-verbose"));
 
-        List<String> options = mojo.buildJavacOptions("/some/classpath.jar");
+        List<String> options = mojo.buildJavacOptions("/some/classpath.jar", "", outputDir);
         assertTrue(options.contains("-Xlint:all"));
         assertTrue(options.contains("-verbose"));
     }
@@ -135,7 +190,8 @@ public class CompilerMojoTest {
                 new File(sourceDir, "Hello.java"),
                 new File(sourceDir, "World.java"));
 
-        List<String> args = mojo.buildEcjArguments(sourceFiles, "/some/classpath.jar");
+        List<String> args = mojo.buildEcjArguments(sourceFiles, "/some/classpath.jar",
+                "/some/sourcepath", outputDir);
 
         assertTrue(args.contains("-source"));
         assertTrue(args.contains("1.8"));
@@ -144,10 +200,11 @@ public class CompilerMojoTest {
         assertTrue(args.contains(outputDir.getAbsolutePath()));
         assertTrue(args.contains("-classpath"));
         assertTrue(args.contains("/some/classpath.jar"));
+        assertTrue(args.contains("-sourcepath"));
+        assertTrue(args.contains("/some/sourcepath"));
         assertTrue(args.contains("-properties"));
         assertTrue(args.contains(propsFile.getAbsolutePath()));
         assertTrue(args.contains("-nowarn"));
-        // Source files should be at the end
         assertTrue(args.contains(new File(sourceDir, "Hello.java").getAbsolutePath()));
         assertTrue(args.contains(new File(sourceDir, "World.java").getAbsolutePath()));
     }
@@ -155,7 +212,7 @@ public class CompilerMojoTest {
     @Test
     public void testBuildEcjArgumentsNoProperties() throws Exception {
         List<File> sourceFiles = Arrays.asList(new File(sourceDir, "Hello.java"));
-        List<String> args = mojo.buildEcjArguments(sourceFiles, "/some/classpath.jar");
+        List<String> args = mojo.buildEcjArguments(sourceFiles, "/some/classpath.jar", "", outputDir);
 
         assertFalse(args.contains("-properties"));
     }
@@ -165,9 +222,8 @@ public class CompilerMojoTest {
         setField(mojo, "propertiesFile", new File("/nonexistent/file.properties"));
 
         List<File> sourceFiles = Arrays.asList(new File(sourceDir, "Hello.java"));
-        List<String> args = mojo.buildEcjArguments(sourceFiles, "/some/classpath.jar");
+        List<String> args = mojo.buildEcjArguments(sourceFiles, "/some/classpath.jar", "", outputDir);
 
-        // Should not include -properties for non-existent file
         assertFalse(args.contains("-properties"));
     }
 
@@ -179,13 +235,11 @@ public class CompilerMojoTest {
 
     @Test
     public void testExecuteCompileWithJavac() throws Exception {
-        // Create a simple Java source file
         createFile(new File(sourceDir, "Hello.java"),
                 "public class Hello {\n    public static void main(String[] args) {}\n}");
 
         mojo.execute();
 
-        // Verify the class file was created
         File classFile = new File(outputDir, "Hello.class");
         assertTrue("Class file should exist after compilation", classFile.exists());
     }
@@ -217,8 +271,76 @@ public class CompilerMojoTest {
 
     @Test
     public void testBuildJavacOptionsEmptyClasspath() throws Exception {
-        List<String> options = mojo.buildJavacOptions("");
+        List<String> options = mojo.buildJavacOptions("", "", outputDir);
         assertFalse(options.contains("-classpath"));
+    }
+
+    @Test
+    public void testBuildJavacOptionsNullSourceTarget() throws Exception {
+        setField(mojo, "source", null);
+        setField(mojo, "target", null);
+        List<String> options = mojo.buildJavacOptions("/cp", "", outputDir);
+        assertFalse(options.contains("-source"));
+        assertFalse(options.contains("-target"));
+    }
+
+    @Test
+    public void testCompileMultiModuleWithJavac() throws Exception {
+        // Module A has a class that Module B depends on
+        File srcA = tempFolder.newFolder("module-a-src");
+        File outA = tempFolder.newFolder("module-a-classes");
+        File srcB = tempFolder.newFolder("module-b-src");
+        File outB = tempFolder.newFolder("module-b-classes");
+
+        createFile(new File(srcA, "Shared.java"),
+                "public class Shared { public int value() { return 1; } }");
+        createFile(new File(srcB, "Consumer.java"),
+                "public class Consumer { public Shared get() { return new Shared(); } }");
+
+        CompilerMojo.CompilerModule modA = new CompilerMojo.CompilerModule();
+        modA.setSourceDirectories(Arrays.asList(srcA.getAbsolutePath()));
+        modA.setOutputDirectory(outA);
+
+        CompilerMojo.CompilerModule modB = new CompilerMojo.CompilerModule();
+        modB.setSourceDirectories(Arrays.asList(srcB.getAbsolutePath()));
+        modB.setOutputDirectory(outB);
+
+        setField(mojo, "modules", Arrays.asList(modA, modB));
+
+        mojo.execute();
+
+        // Module A output should have Shared.class
+        assertTrue("Shared.class should be in module A output",
+                new File(outA, "Shared.class").exists());
+        // Module B output should have Consumer.class
+        assertTrue("Consumer.class should be in module B output",
+                new File(outB, "Consumer.class").exists());
+        // Cross-check: module A should NOT have Consumer.class
+        assertFalse("Consumer.class should NOT be in module A output",
+                new File(outA, "Consumer.class").exists());
+    }
+
+    @Test
+    public void testValidateDirectories() throws Exception {
+        File existingDir = tempFolder.newFolder("existing");
+        List<String> result = mojo.validateDirectories(
+                Arrays.asList(existingDir.getAbsolutePath(), "/nonexistent/dir"));
+        assertEquals(1, result.size());
+        assertEquals(existingDir.getAbsolutePath(), result.get(0));
+    }
+
+    @Test
+    public void testValidateDirectoriesNull() throws Exception {
+        List<String> result = mojo.validateDirectories(null);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    public void testBuildSourcepath() throws Exception {
+        List<String> dirs = Arrays.asList("/path/a", "/path/b");
+        String sourcepath = mojo.buildSourcepath(dirs);
+        String sep = System.getProperty("path.separator");
+        assertEquals("/path/a" + sep + "/path/b", sourcepath);
     }
 
     private void createFile(File file, String content) throws IOException {
