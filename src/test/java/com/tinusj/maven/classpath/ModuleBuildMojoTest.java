@@ -750,7 +750,7 @@ public class ModuleBuildMojoTest {
         // Module only sets enabled, everything else comes from global
         BuildModule.EcjCompileSettings moduleEcj = new BuildModule.EcjCompileSettings();
         moduleEcj.setEnabled(true);
-        moduleEcj.setDebug(false); // Explicitly match global
+        // nowarn, failOnError, debug are all null on the override, so global values should be used
 
         BuildModule.EcjCompileSettings merged = BuildModule.EcjCompileSettings.merge(global, moduleEcj);
 
@@ -758,7 +758,7 @@ public class ModuleBuildMojoTest {
         assertEquals("21", merged.getSource());
         assertEquals("21", merged.getTarget());
         assertEquals("Cp1252", merged.getEncoding());
-        assertFalse(merged.isDebug());
+        assertFalse(merged.isDebug()); // inherited from global (debug=false)
     }
 
     @Test
@@ -849,7 +849,7 @@ public class ModuleBuildMojoTest {
         BuildModule.CxfCompileSettings moduleCxf = new BuildModule.CxfCompileSettings();
         moduleCxf.setEnabled(true);
         moduleCxf.setServiceClass("com.example.Service");
-        moduleCxf.setCreateXsdImports(true); // Explicitly match global
+        // createXsdImports is null on override, so global's value (true) should be inherited
 
         BuildModule.CxfCompileSettings merged = BuildModule.CxfCompileSettings.merge(global, moduleCxf);
 

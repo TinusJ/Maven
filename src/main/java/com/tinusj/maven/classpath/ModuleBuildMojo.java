@@ -278,7 +278,7 @@ public class ModuleBuildMojo extends AbstractMojo {
             for (BuildModule module : buildModules) {
                 boolean hasSources = module.getSourceDirectories() != null && !module.getSourceDirectories().isEmpty();
                 boolean hasOutput = module.getOutputDirectory() != null;
-                boolean hasWarPackage = module.getWarPackage() != null;
+                boolean hasWarPackage = module.isWarEnabled();
                 if (hasSources || hasOutput || hasWarPackage) {
                     resolved.add(module);
                 } else {

@@ -270,22 +270,22 @@ public class BuildModule {
         private String encoding;
 
         /**
-         * Whether to suppress warnings.
+         * Whether to suppress warnings. Defaults to true if not set.
          */
-        @Parameter(defaultValue = "true")
-        private boolean nowarn = true;
+        @Parameter
+        private Boolean nowarn;
 
         /**
-         * Whether to fail on error.
+         * Whether to fail on error. Defaults to true if not set.
          */
-        @Parameter(defaultValue = "true")
-        private boolean failOnError = true;
+        @Parameter
+        private Boolean failOnError;
 
         /**
-         * Whether to include debug information.
+         * Whether to include debug information. Defaults to true if not set.
          */
-        @Parameter(defaultValue = "true")
-        private boolean debug = true;
+        @Parameter
+        private Boolean debug;
 
         /**
          * Additional compiler arguments.
@@ -342,7 +342,7 @@ public class BuildModule {
         }
 
         public boolean isNowarn() {
-            return nowarn;
+            return nowarn != null ? nowarn : true;
         }
 
         public void setNowarn(boolean nowarn) {
@@ -350,7 +350,7 @@ public class BuildModule {
         }
 
         public boolean isFailOnError() {
-            return failOnError;
+            return failOnError != null ? failOnError : true;
         }
 
         public void setFailOnError(boolean failOnError) {
@@ -358,7 +358,7 @@ public class BuildModule {
         }
 
         public boolean isDebug() {
-            return debug;
+            return debug != null ? debug : true;
         }
 
         public void setDebug(boolean debug) {
@@ -407,9 +407,9 @@ public class BuildModule {
             merged.setTarget(override.getTarget() != null ? override.getTarget() : defaults.getTarget());
             merged.setPropertiesFile(override.getPropertiesFile() != null ? override.getPropertiesFile() : defaults.getPropertiesFile());
             merged.setEncoding(override.getEncoding() != null ? override.getEncoding() : defaults.getEncoding());
-            merged.setNowarn(override.nowarn);
-            merged.setFailOnError(override.failOnError);
-            merged.setDebug(override.debug);
+            merged.setNowarn(override.nowarn != null ? override.nowarn : (defaults.nowarn != null ? defaults.nowarn : true));
+            merged.setFailOnError(override.failOnError != null ? override.failOnError : (defaults.failOnError != null ? defaults.failOnError : true));
+            merged.setDebug(override.debug != null ? override.debug : (defaults.debug != null ? defaults.debug : true));
             merged.setCompilerArguments(override.getCompilerArguments() != null ? override.getCompilerArguments() : defaults.getCompilerArguments());
             merged.setClasspathEntries(override.getClasspathEntries() != null ? override.getClasspathEntries() : defaults.getClasspathEntries());
             return merged;
@@ -481,20 +481,20 @@ public class BuildModule {
         /**
          * Whether to save generated source.
          */
-        @Parameter(defaultValue = "false")
-        private boolean saveSource;
+        @Parameter
+        private Boolean saveSource;
 
         /**
          * Whether to use strict mode.
          */
-        @Parameter(defaultValue = "false")
-        private boolean strict;
+        @Parameter
+        private Boolean strict;
 
         /**
-         * Whether to fail on error.
+         * Whether to fail on error. Defaults to true if not set.
          */
-        @Parameter(defaultValue = "true")
-        private boolean failOnError = true;
+        @Parameter
+        private Boolean failOnError;
 
         /**
          * Method name display mode (e.g. "FULL", "SHORT", "NONE").
@@ -595,7 +595,7 @@ public class BuildModule {
         }
 
         public boolean isSaveSource() {
-            return saveSource;
+            return saveSource != null ? saveSource : false;
         }
 
         public void setSaveSource(boolean saveSource) {
@@ -603,7 +603,7 @@ public class BuildModule {
         }
 
         public boolean isStrict() {
-            return strict;
+            return strict != null ? strict : false;
         }
 
         public void setStrict(boolean strict) {
@@ -611,7 +611,7 @@ public class BuildModule {
         }
 
         public boolean isFailOnError() {
-            return failOnError;
+            return failOnError != null ? failOnError : true;
         }
 
         public void setFailOnError(boolean failOnError) {
@@ -680,9 +680,9 @@ public class BuildModule {
             merged.setOptimize(override.getOptimize() != null ? override.getOptimize() : defaults.getOptimize());
             merged.setWorkDir(override.getWorkDir() != null ? override.getWorkDir() : defaults.getWorkDir());
             merged.setExtraDir(override.getExtraDir() != null ? override.getExtraDir() : defaults.getExtraDir());
-            merged.setSaveSource(override.saveSource);
-            merged.setStrict(override.strict);
-            merged.setFailOnError(override.failOnError);
+            merged.setSaveSource(override.saveSource != null ? override.saveSource : (defaults.saveSource != null ? defaults.saveSource : false));
+            merged.setStrict(override.strict != null ? override.strict : (defaults.strict != null ? defaults.strict : false));
+            merged.setFailOnError(override.failOnError != null ? override.failOnError : (defaults.failOnError != null ? defaults.failOnError : true));
             merged.setMethodNameDisplayMode(override.getMethodNameDisplayMode() != null ? override.getMethodNameDisplayMode() : defaults.getMethodNameDisplayMode());
             merged.setClasspathEntries(override.getClasspathEntries() != null ? override.getClasspathEntries() : defaults.getClasspathEntries());
             merged.setJvmArguments(override.getJvmArguments() != null ? override.getJvmArguments() : defaults.getJvmArguments());
@@ -724,16 +724,16 @@ public class BuildModule {
         private String outputFile;
 
         /**
-         * Whether to generate WSDL output.
+         * Whether to generate WSDL output. Defaults to true if not set.
          */
-        @Parameter(defaultValue = "true")
-        private boolean generateWsdl = true;
+        @Parameter
+        private Boolean generateWsdl;
 
         /**
          * Whether to create XSD imports.
          */
-        @Parameter(defaultValue = "false")
-        private boolean createXsdImports;
+        @Parameter
+        private Boolean createXsdImports;
 
         /**
          * Additional classpath entries for CXF.
@@ -782,7 +782,7 @@ public class BuildModule {
         }
 
         public boolean isGenerateWsdl() {
-            return generateWsdl;
+            return generateWsdl != null ? generateWsdl : true;
         }
 
         public void setGenerateWsdl(boolean generateWsdl) {
@@ -790,7 +790,7 @@ public class BuildModule {
         }
 
         public boolean isCreateXsdImports() {
-            return createXsdImports;
+            return createXsdImports != null ? createXsdImports : false;
         }
 
         public void setCreateXsdImports(boolean createXsdImports) {
@@ -838,8 +838,8 @@ public class BuildModule {
             merged.setServiceClass(override.getServiceClass() != null ? override.getServiceClass() : defaults.getServiceClass());
             merged.setOutputDirectory(override.getOutputDirectory() != null ? override.getOutputDirectory() : defaults.getOutputDirectory());
             merged.setOutputFile(override.getOutputFile() != null ? override.getOutputFile() : defaults.getOutputFile());
-            merged.setGenerateWsdl(override.generateWsdl);
-            merged.setCreateXsdImports(override.createXsdImports);
+            merged.setGenerateWsdl(override.generateWsdl != null ? override.generateWsdl : (defaults.generateWsdl != null ? defaults.generateWsdl : true));
+            merged.setCreateXsdImports(override.createXsdImports != null ? override.createXsdImports : (defaults.createXsdImports != null ? defaults.createXsdImports : false));
             merged.setClasspathEntries(override.getClasspathEntries() != null ? override.getClasspathEntries() : defaults.getClasspathEntries());
             merged.setArguments(override.getArguments() != null ? override.getArguments() : defaults.getArguments());
             return merged;
@@ -885,9 +885,10 @@ public class BuildModule {
 
         /**
          * Whether to include the module's compiled classes directory in WEB-INF/classes.
+         * Defaults to true if not set.
          */
-        @Parameter(defaultValue = "true")
-        private boolean includeClasses = true;
+        @Parameter
+        private Boolean includeClasses;
 
         /**
          * Additional directories whose contents should be added to the WAR root.
@@ -929,7 +930,7 @@ public class BuildModule {
         }
 
         public boolean isIncludeClasses() {
-            return includeClasses;
+            return includeClasses != null ? includeClasses : true;
         }
 
         public void setIncludeClasses(boolean includeClasses) {
@@ -976,7 +977,7 @@ public class BuildModule {
             merged.setEnabled(override.isEnabled());
             merged.setWarSourceDirectory(override.getWarSourceDirectory() != null ? override.getWarSourceDirectory() : defaults.getWarSourceDirectory());
             merged.setWarFile(override.getWarFile() != null ? override.getWarFile() : defaults.getWarFile());
-            merged.setIncludeClasses(override.includeClasses);
+            merged.setIncludeClasses(override.includeClasses != null ? override.includeClasses : (defaults.includeClasses != null ? defaults.includeClasses : true));
             merged.setAdditionalContentDirectories(override.getAdditionalContentDirectories() != null ? override.getAdditionalContentDirectories() : defaults.getAdditionalContentDirectories());
             merged.setLibEntries(override.getLibEntries() != null ? override.getLibEntries() : defaults.getLibEntries());
             return merged;
