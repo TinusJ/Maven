@@ -100,12 +100,13 @@ final class CommandLineBuilder {
 
     /**
      * Sets the classpath using a {@link ClassPath} instance.
+     * Replaces any previously configured classpath entries.
      * @param classPath the classpath
      * @return this builder
      */
     CommandLineBuilder withClasspath(ClassPath classPath) {
+        this.classpathEntries.clear();
         if (classPath != null && !classPath.isEmpty()) {
-            this.classpathEntries.clear();
             this.classpathEntries.add(classPath.toString());
         }
         return this;
@@ -113,12 +114,13 @@ final class CommandLineBuilder {
 
     /**
      * Sets the classpath using individual path entries.
+     * Replaces any previously configured classpath entries.
      * @param entries the classpath entries
      * @return this builder
      */
     CommandLineBuilder withClasspathEntries(List<String> entries) {
+        this.classpathEntries.clear();
         if (entries != null) {
-            this.classpathEntries.clear();
             entries.stream()
                     .filter(e -> e != null && !e.isEmpty())
                     .forEach(this.classpathEntries::add);

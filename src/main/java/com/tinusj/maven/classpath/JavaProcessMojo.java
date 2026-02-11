@@ -1,5 +1,6 @@
 package com.tinusj.maven.classpath;
 
+import org.apache.maven.artifact.DependencyResolutionRequiredException;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -238,7 +239,7 @@ public class JavaProcessMojo extends AbstractMojo {
                         }
                     }
                 }
-            } catch (Exception e) {
+            } catch (DependencyResolutionRequiredException e) {
                 throw new MojoExecutionException("Failed to resolve compile classpath", e);
             }
         }
