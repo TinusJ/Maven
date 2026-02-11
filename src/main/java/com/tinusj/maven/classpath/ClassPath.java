@@ -8,7 +8,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -49,7 +48,7 @@ final class ClassPath {
      * @return the command line arguments, or an empty list if this class path is empty
      */
     List<String> args(String flag, boolean allowArgFile) {
-        return !isEmpty() ? List.of(flag, pathArg(allowArgFile)) : Collections.emptyList();
+        return !isEmpty() ? List.of(flag, pathArg(allowArgFile)) : List.of();
     }
 
     /**
