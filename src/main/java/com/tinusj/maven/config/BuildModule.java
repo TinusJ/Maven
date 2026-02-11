@@ -112,6 +112,13 @@ public class BuildModule {
     @Parameter
     private WarPackageSettings warPackage;
 
+    /**
+     * GWT CodeServer (SuperDevMode) settings for this module.
+     * If not configured or not enabled, CodeServer is skipped.
+     */
+    @Parameter
+    private CodeServerSettings codeServer;
+
     // -- Getters and Setters --
 
     public String getName() {
@@ -186,6 +193,14 @@ public class BuildModule {
         this.warPackage = warPackage;
     }
 
+    public CodeServerSettings getCodeServer() {
+        return codeServer;
+    }
+
+    public void setCodeServer(CodeServerSettings codeServer) {
+        this.codeServer = codeServer;
+    }
+
     /**
      * Returns the display name for this module, falling back to the output directory path.
      */
@@ -225,6 +240,13 @@ public class BuildModule {
      */
     public boolean isWarEnabled() {
         return warPackage != null && warPackage.isEnabled();
+    }
+
+    /**
+     * Returns true if this module has GWT CodeServer (SuperDevMode) enabled.
+     */
+    public boolean isCodeServerEnabled() {
+        return codeServer != null && codeServer.isEnabled();
     }
 
     // =====================================================================
@@ -980,6 +1002,232 @@ public class BuildModule {
             merged.setIncludeClasses(override.includeClasses != null ? override.includeClasses : (defaults.includeClasses != null ? defaults.includeClasses : true));
             merged.setAdditionalContentDirectories(override.getAdditionalContentDirectories() != null ? override.getAdditionalContentDirectories() : defaults.getAdditionalContentDirectories());
             merged.setLibEntries(override.getLibEntries() != null ? override.getLibEntries() : defaults.getLibEntries());
+            return merged;
+        }
+    }
+
+    /**
+     * GWT CodeServer (SuperDevMode) settings for a module.
+     *
+     * <p>Configures how the GWT CodeServer runs as a forked Java process to
+     * enable SuperDevMode for live reloading and debugging of GWT modules.</p>
+     *
+     * <p>Example usage:</p>
+     * <pre>
+     * &lt;codeServer&gt;
+     *     &lt;enabled&gt;true&lt;/enabled&gt;
+     *     &lt;bindAddress&gt;0.0.0.0&lt;/bindAddress&gt;
+     *     &lt;port&gt;9876&lt;/port&gt;
+     *     &lt;launcherDir&gt;${rootDir}/GWT/war&lt;/launcherDir&gt;
+     * &lt;/codeServer&gt;
+     * </pre>
+     */
+    public static class CodeServerSettings {
+
+        /**
+         * Whether CodeServer is enabled for this module.
+         */
+        @Parameter(defaultValue = "false")
+        private boolean enabled;
+
+        /**
+         * The GWT modules to serve via CodeServer.
+         * If not specified, falls back to the GWT compile modules.
+         */
+        @Parameter
+        private List<String> gwtModules;
+
+        /**
+         * The compiler work directory (must be writeable).
+         */
+        @Parameter
+        private String workDir;
+
+        /**
+         * Directory where files for launching SuperDevMode (e.g. {@code *.nocache.js}) will be written.
+         */
+        @Parameter
+        private String launcherDir;
+
+        /**
+         * The address to bind the CodeServer to.
+         */
+        @Parameter
+        private String bindAddress;
+
+        /**
+         * The port to run the CodeServer on.
+         */
+        @Parameter
+        private String port;
+
+        /**
+         * Additional arguments to pass to the GWT CodeServer.
+         */
+        @Parameter
+        private List<String> codeserverArgs;
+
+        /**
+         * Additional classpath entries for the CodeServer.
+         */
+        @Parameter
+        private List<String> classpathEntries;
+
+        /**
+         * JVM arguments for the forked CodeServer process.
+         */
+        @Parameter
+        private List<String> jvmArguments;
+
+        /**
+         * System properties for the forked CodeServer process.
+         */
+        @Parameter
+        private Map<String, String> systemProperties;
+
+        /**
+         * The GWT log level (e.g. "ERROR", "WARN", "INFO", "TRACE", "DEBUG", "SPAM", "ALL").
+         */
+        @Parameter
+        private String logLevel;
+
+        /**
+         * Whether to fail on error. Defaults to true if not set.
+         */
+        @Parameter
+        private Boolean failOnError;
+
+        // -- Getters and Setters --
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public List<String> getGwtModules() {
+            return gwtModules;
+        }
+
+        public void setGwtModules(List<String> gwtModules) {
+            this.gwtModules = gwtModules;
+        }
+
+        public String getWorkDir() {
+            return workDir;
+        }
+
+        public void setWorkDir(String workDir) {
+            this.workDir = workDir;
+        }
+
+        public String getLauncherDir() {
+            return launcherDir;
+        }
+
+        public void setLauncherDir(String launcherDir) {
+            this.launcherDir = launcherDir;
+        }
+
+        public String getBindAddress() {
+            return bindAddress;
+        }
+
+        public void setBindAddress(String bindAddress) {
+            this.bindAddress = bindAddress;
+        }
+
+        public String getPort() {
+            return port;
+        }
+
+        public void setPort(String port) {
+            this.port = port;
+        }
+
+        public List<String> getCodeserverArgs() {
+            return codeserverArgs;
+        }
+
+        public void setCodeserverArgs(List<String> codeserverArgs) {
+            this.codeserverArgs = codeserverArgs;
+        }
+
+        public List<String> getClasspathEntries() {
+            return classpathEntries;
+        }
+
+        public void setClasspathEntries(List<String> classpathEntries) {
+            this.classpathEntries = classpathEntries;
+        }
+
+        public List<String> getJvmArguments() {
+            return jvmArguments;
+        }
+
+        public void setJvmArguments(List<String> jvmArguments) {
+            this.jvmArguments = jvmArguments;
+        }
+
+        public Map<String, String> getSystemProperties() {
+            return systemProperties;
+        }
+
+        public void setSystemProperties(Map<String, String> systemProperties) {
+            this.systemProperties = systemProperties;
+        }
+
+        public String getLogLevel() {
+            return logLevel;
+        }
+
+        public void setLogLevel(String logLevel) {
+            this.logLevel = logLevel;
+        }
+
+        public boolean isFailOnError() {
+            return failOnError != null ? failOnError : true;
+        }
+
+        public void setFailOnError(boolean failOnError) {
+            this.failOnError = failOnError;
+        }
+
+        /**
+         * Creates a new {@link CodeServerSettings} by merging global defaults with
+         * module-specific overrides. Module-specific non-null values take precedence
+         * over global defaults.
+         *
+         * @param defaults the global default settings (may be null)
+         * @param override the module-specific settings (may be null)
+         * @return a merged settings instance, or null if both inputs are null
+         */
+        public static CodeServerSettings merge(CodeServerSettings defaults, CodeServerSettings override) {
+            if (defaults == null && override == null) {
+                return null;
+            }
+            if (defaults == null) {
+                return override;
+            }
+            if (override == null) {
+                return defaults;
+            }
+
+            CodeServerSettings merged = new CodeServerSettings();
+            merged.setEnabled(override.isEnabled());
+            merged.setGwtModules(override.getGwtModules() != null ? override.getGwtModules() : defaults.getGwtModules());
+            merged.setWorkDir(override.getWorkDir() != null ? override.getWorkDir() : defaults.getWorkDir());
+            merged.setLauncherDir(override.getLauncherDir() != null ? override.getLauncherDir() : defaults.getLauncherDir());
+            merged.setBindAddress(override.getBindAddress() != null ? override.getBindAddress() : defaults.getBindAddress());
+            merged.setPort(override.getPort() != null ? override.getPort() : defaults.getPort());
+            merged.setCodeserverArgs(override.getCodeserverArgs() != null ? override.getCodeserverArgs() : defaults.getCodeserverArgs());
+            merged.setClasspathEntries(override.getClasspathEntries() != null ? override.getClasspathEntries() : defaults.getClasspathEntries());
+            merged.setJvmArguments(override.getJvmArguments() != null ? override.getJvmArguments() : defaults.getJvmArguments());
+            merged.setSystemProperties(override.getSystemProperties() != null ? override.getSystemProperties() : defaults.getSystemProperties());
+            merged.setLogLevel(override.getLogLevel() != null ? override.getLogLevel() : defaults.getLogLevel());
+            merged.setFailOnError(override.failOnError != null ? override.failOnError : (defaults.failOnError != null ? defaults.failOnError : true));
             return merged;
         }
     }
