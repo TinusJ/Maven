@@ -3,10 +3,9 @@ package com.tinusj.maven.classpath;
 import org.apache.maven.model.Build;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.project.MavenProject;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -16,24 +15,29 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CompilerMojoTest {
 
-    @Rule
-    public TemporaryFolder tempFolder = new TemporaryFolder();
+    @TempDir
+    File tempFolder;
 
     private CompilerMojo mojo;
     private File sourceDir;
     private File outputDir;
 
-    @Before
+    @BeforeEach
     public void setUp() throws Exception {
         mojo = new CompilerMojo();
 
         // Create source and output directories
-        sourceDir = tempFolder.newFolder("src");
-        outputDir = tempFolder.newFolder("classes");
+        sourceDir = new File(tempFolder, "src");
+        sourceDir.mkdirs();
+        outputDir = new File(tempFolder, "classes");
+        outputDir.mkdirs();
 
         // Set up a mock project with maven.compiler.source/target properties
         MavenProject project = new MavenProject();
@@ -62,10 +66,14 @@ public class CompilerMojoTest {
 
     @Test
     public void testResolveModulesExplicit() throws Exception {
-        File srcA = tempFolder.newFolder("module-a-src");
-        File outA = tempFolder.newFolder("module-a-out");
-        File srcB = tempFolder.newFolder("module-b-src");
-        File outB = tempFolder.newFolder("module-b-out");
+        File srcA = new File(tempFolder, "module-a-src");
+        srcA.mkdirs();
+        File outA = new File(tempFolder, "module-a-out");
+        outA.mkdirs();
+        File srcB = new File(tempFolder, "module-b-src");
+        srcB.mkdirs();
+        File outB = new File(tempFolder, "module-b-out");
+        outB.mkdirs();
 
         CompilerMojo.CompilerModule modA = new CompilerMojo.CompilerModule();
         modA.setSourceDirectories(Arrays.asList(srcA.getAbsolutePath()));
@@ -95,8 +103,10 @@ public class CompilerMojoTest {
 
     @Test
     public void testCollectAllSourceDirectories() throws Exception {
-        File srcA = tempFolder.newFolder("mod-a");
-        File srcB = tempFolder.newFolder("mod-b");
+        File srcA = new File(tempFolder, "mod-a");
+        srcA.mkdirs();
+        File srcB = new File(tempFolder, "mod-b");
+        srcB.mkdirs();
 
         CompilerMojo.CompilerModule modA = new CompilerMojo.CompilerModule();
         modA.setSourceDirectories(Arrays.asList(srcA.getAbsolutePath()));
@@ -183,7 +193,8 @@ public class CompilerMojoTest {
 
     @Test
     public void testBuildEcjArguments() throws Exception {
-        File propsFile = tempFolder.newFile("ecj.properties");
+        File propsFile = new File(tempFolder, "ecj.properties");
+        propsFile.createNewFile();
         setField(mojo, "propertiesFile", propsFile);
 
         List<File> sourceFiles = Arrays.asList(
@@ -241,19 +252,19 @@ public class CompilerMojoTest {
         mojo.execute();
 
         File classFile = new File(outputDir, "Hello.class");
-        assertTrue("Class file should exist after compilation", classFile.exists());
+        assertTrue(classFile.exists(), "Class file should exist after compilation");
     }
 
-    @Test(expected = MojoExecutionException.class)
+    @Test
     public void testExecuteUnsupportedCompiler() throws Exception {
         setField(mojo, "compiler", "unsupported");
         createFile(new File(sourceDir, "Hello.java"), "public class Hello {}");
-        mojo.execute();
+        assertThrows(MojoExecutionException.class, () -> mojo.execute());
     }
 
-    @Test(expected = MojoExecutionException.class)
+    @Test
     public void testLoadEcjMainClassNotFound() throws Exception {
-        mojo.loadEcjMainClass();
+        assertThrows(MojoExecutionException.class, () -> mojo.loadEcjMainClass());
     }
 
     @Test
@@ -287,10 +298,14 @@ public class CompilerMojoTest {
     @Test
     public void testCompileMultiModuleWithJavac() throws Exception {
         // Module A has a class that Module B depends on
-        File srcA = tempFolder.newFolder("module-a-src");
-        File outA = tempFolder.newFolder("module-a-classes");
-        File srcB = tempFolder.newFolder("module-b-src");
-        File outB = tempFolder.newFolder("module-b-classes");
+        File srcA = new File(tempFolder, "module-a-src");
+        srcA.mkdirs();
+        File outA = new File(tempFolder, "module-a-classes");
+        outA.mkdirs();
+        File srcB = new File(tempFolder, "module-b-src");
+        srcB.mkdirs();
+        File outB = new File(tempFolder, "module-b-classes");
+        outB.mkdirs();
 
         createFile(new File(srcA, "Shared.java"),
                 "public class Shared { public int value() { return 1; } }");
@@ -310,19 +325,20 @@ public class CompilerMojoTest {
         mojo.execute();
 
         // Module A output should have Shared.class
-        assertTrue("Shared.class should be in module A output",
-                new File(outA, "Shared.class").exists());
+        assertTrue(new File(outA, "Shared.class").exists(),
+                "Shared.class should be in module A output");
         // Module B output should have Consumer.class
-        assertTrue("Consumer.class should be in module B output",
-                new File(outB, "Consumer.class").exists());
+        assertTrue(new File(outB, "Consumer.class").exists(),
+                "Consumer.class should be in module B output");
         // Cross-check: module A should NOT have Consumer.class
-        assertFalse("Consumer.class should NOT be in module A output",
-                new File(outA, "Consumer.class").exists());
+        assertFalse(new File(outA, "Consumer.class").exists(),
+                "Consumer.class should NOT be in module A output");
     }
 
     @Test
     public void testValidateDirectories() throws Exception {
-        File existingDir = tempFolder.newFolder("existing");
+        File existingDir = new File(tempFolder, "existing");
+        existingDir.mkdirs();
         List<String> result = mojo.validateDirectories(
                 Arrays.asList(existingDir.getAbsolutePath(), "/nonexistent/dir"));
         assertEquals(1, result.size());
