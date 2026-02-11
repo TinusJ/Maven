@@ -1,4 +1,4 @@
-package com.tinusj.maven.classpath;
+package com.tinusj.maven.support;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  * @see <a href="https://github.com/spring-projects/spring-boot/blob/main/build-plugin/spring-boot-maven-plugin/src/main/java/org/springframework/boot/maven/ClassPath.java">
  *     Spring Boot ClassPath</a>
  */
-final class ClassPath {
+public final class ClassPath {
 
     private static final Collector<CharSequence, ?, String> JOIN_BY_PATH_SEPARATOR = Collectors
             .joining(File.pathSeparator);
@@ -47,7 +47,7 @@ final class ClassPath {
      * @param allowArgFile if an arg file can be used
      * @return the command line arguments, or an empty list if this class path is empty
      */
-    List<String> args(String flag, boolean allowArgFile) {
+    public List<String> args(String flag, boolean allowArgFile) {
         return !isEmpty() ? List.of(flag, pathArg(allowArgFile)) : List.of();
     }
 
@@ -57,7 +57,7 @@ final class ClassPath {
      * @param flag the command line flag to use
      * @return the command line arguments, or an empty list if this class path is empty
      */
-    List<String> args(String flag) {
+    public List<String> args(String flag) {
         return args(flag, false);
     }
 
@@ -77,7 +77,7 @@ final class ClassPath {
      * Returns {@code true} if this class path has no entries.
      * @return true if empty
      */
-    boolean isEmpty() {
+    public boolean isEmpty() {
         return this.path.isEmpty();
     }
 
@@ -86,7 +86,7 @@ final class ClassPath {
      * @param other the class path to append
      * @return a new {@link ClassPath} containing both paths
      */
-    ClassPath append(ClassPath other) {
+    public ClassPath append(ClassPath other) {
         if (other == null || other.isEmpty()) {
             return this;
         }
@@ -124,7 +124,7 @@ final class ClassPath {
      * @param entries the class path entries (absolute paths)
      * @return a new {@link ClassPath} instance
      */
-    static ClassPath of(List<String> entries) {
+    public static ClassPath of(List<String> entries) {
         if (entries == null || entries.isEmpty()) {
             return EMPTY;
         }
@@ -143,7 +143,7 @@ final class ClassPath {
      * @param entries the class path entries (absolute paths)
      * @return a new {@link ClassPath} instance
      */
-    static ClassPath of(String... entries) {
+    public static ClassPath of(String... entries) {
         return of(Arrays.asList(entries));
     }
 
@@ -153,7 +153,7 @@ final class ClassPath {
      * @param files the files to use as class path entries
      * @return a new {@link ClassPath} instance
      */
-    static ClassPath ofFiles(List<File> files) {
+    public static ClassPath ofFiles(List<File> files) {
         if (files == null || files.isEmpty()) {
             return EMPTY;
         }
@@ -170,7 +170,7 @@ final class ClassPath {
      * Returns an empty {@link ClassPath}.
      * @return an empty class path
      */
-    static ClassPath empty() {
+    public static ClassPath empty() {
         return EMPTY;
     }
 

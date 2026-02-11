@@ -1,4 +1,8 @@
-package com.tinusj.maven.classpath;
+package com.tinusj.maven;
+
+import com.tinusj.maven.config.MavenDockerConfiguration;
+import com.tinusj.maven.support.MojoBuildLog;
+import com.tinusj.maven.support.PackagedTarArchive;
 
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;

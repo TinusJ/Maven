@@ -1,4 +1,4 @@
-package com.tinusj.maven.classpath;
+package com.tinusj.maven.support;
 
 import org.apache.maven.plugin.logging.Log;
 import org.springframework.boot.buildpack.platform.build.AbstractBuildLog;

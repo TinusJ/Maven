@@ -1,4 +1,4 @@
-package com.tinusj.maven.classpath;
+package com.tinusj.maven.support;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

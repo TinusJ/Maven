@@ -1,4 +1,4 @@
-package com.tinusj.maven.classpath;
+package com.tinusj.maven.config;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.buildpack.platform.docker.configuration.DockerConfiguration;

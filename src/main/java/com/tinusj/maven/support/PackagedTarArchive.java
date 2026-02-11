@@ -1,4 +1,4 @@
-package com.tinusj.maven.classpath;
+package com.tinusj.maven.support;
 
 import org.springframework.boot.buildpack.platform.io.Owner;
 import org.springframework.boot.buildpack.platform.io.TarArchive;

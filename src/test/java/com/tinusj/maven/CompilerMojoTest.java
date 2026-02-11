@@ -1,4 +1,6 @@
-package com.tinusj.maven.classpath;
+package com.tinusj.maven;
+
+import com.tinusj.maven.support.ClassPath;
 
 import org.apache.maven.model.Build;
 import org.apache.maven.plugin.MojoExecutionException;

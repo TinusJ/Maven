@@ -1,4 +1,4 @@
-package com.tinusj.maven.classpath;
+package com.tinusj.maven.config;
 
 import org.springframework.boot.buildpack.platform.docker.configuration.DockerConfiguration;
 import org.springframework.boot.buildpack.platform.docker.configuration.DockerRegistryAuthentication;

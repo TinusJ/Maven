@@ -1,4 +1,7 @@
-package com.tinusj.maven.classpath;
+package com.tinusj.maven;
+
+import com.tinusj.maven.support.ClassPath;
+import com.tinusj.maven.support.CommandLineBuilder;
 
 import org.apache.maven.artifact.DependencyResolutionRequiredException;
 import org.apache.maven.plugin.AbstractMojo;
