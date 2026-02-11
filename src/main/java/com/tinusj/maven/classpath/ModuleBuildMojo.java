@@ -130,6 +130,60 @@ public class ModuleBuildMojo extends AbstractMojo {
     @Parameter(property = "module-build.skip", defaultValue = "false")
     private boolean skip;
 
+    /**
+     * Global default ECJ compile settings. Applied to all modules that have ECJ enabled
+     * but don't specify their own values. Module-specific settings override these defaults.
+     *
+     * <p>Example:</p>
+     * <pre>
+     * &lt;defaultEcjCompile&gt;
+     *     &lt;source&gt;21&lt;/source&gt;
+     *     &lt;target&gt;21&lt;/target&gt;
+     *     &lt;encoding&gt;Cp1252&lt;/encoding&gt;
+     *     &lt;propertiesFile&gt;${installerHome}/EJC_Properties/org.eclipse.jdt.core.prefs21&lt;/propertiesFile&gt;
+     *     &lt;nowarn&gt;true&lt;/nowarn&gt;
+     *     &lt;debug&gt;false&lt;/debug&gt;
+     *     &lt;compilerArguments&gt;
+     *         &lt;arg&gt;-XDignore.symbol.file&lt;/arg&gt;
+     *         &lt;arg&gt;-time&lt;/arg&gt;
+     *     &lt;/compilerArguments&gt;
+     * &lt;/defaultEcjCompile&gt;
+     * </pre>
+     */
+    @Parameter
+    private BuildModule.EcjCompileSettings defaultEcjCompile;
+
+    /**
+     * Global default GWT compile settings. Applied to all modules that have GWT enabled
+     * but don't specify their own values. Module-specific settings override these defaults.
+     *
+     * <p>Example:</p>
+     * <pre>
+     * &lt;defaultGwtCompile&gt;
+     *     &lt;warDirectory&gt;${rootDir}/GWT/war&lt;/warDirectory&gt;
+     *     &lt;style&gt;OBF&lt;/style&gt;
+     *     &lt;logLevel&gt;INFO&lt;/logLevel&gt;
+     *     &lt;localWorkers&gt;4&lt;/localWorkers&gt;
+     * &lt;/defaultGwtCompile&gt;
+     * </pre>
+     */
+    @Parameter
+    private BuildModule.GwtCompileSettings defaultGwtCompile;
+
+    /**
+     * Global default CXF compile settings. Applied to all modules that have CXF enabled
+     * but don't specify their own values. Module-specific settings override these defaults.
+     *
+     * <p>Example:</p>
+     * <pre>
+     * &lt;defaultCxfCompile&gt;
+     *     &lt;createXsdImports&gt;true&lt;/createXsdImports&gt;
+     * &lt;/defaultCxfCompile&gt;
+     * </pre>
+     */
+    @Parameter
+    private BuildModule.CxfCompileSettings defaultCxfCompile;
+
     private static final String GWT_COMPILER_CLASS = "com.google.gwt.dev.Compiler";
     private static final String CXF_JAVA2WS_CLASS = "org.apache.cxf.tools.java2ws.JavaToWS";
 
@@ -157,25 +211,37 @@ public class ModuleBuildMojo extends AbstractMojo {
             getLog().info("Processing module: " + module.getDisplayName());
             getLog().info("========================================");
 
+            // Merge global defaults with module-specific settings
+            BuildModule.EcjCompileSettings mergedEcj = BuildModule.EcjCompileSettings.merge(
+                    defaultEcjCompile, module.getEcjCompile());
+            BuildModule.GwtCompileSettings mergedGwt = BuildModule.GwtCompileSettings.merge(
+                    defaultGwtCompile, module.getGwtCompile());
+            BuildModule.CxfCompileSettings mergedCxf = BuildModule.CxfCompileSettings.merge(
+                    defaultCxfCompile, module.getCxfCompile());
+
+            boolean ecjEnabled = mergedEcj != null && mergedEcj.isEnabled();
+            boolean gwtEnabled = mergedGwt != null && mergedGwt.isEnabled();
+            boolean cxfEnabled = mergedCxf != null && mergedCxf.isEnabled();
+
             // Build module classpath (all module output dirs + dependency classpath + module-specific entries)
             ClassPath moduleClasspath = buildModuleClasspath(resolved, dependencyClasspath, module);
 
             // Step 1: ECJ Compile
-            if (module.isEcjEnabled()) {
-                executeEcjCompile(module, allSourceDirs, moduleClasspath);
+            if (ecjEnabled) {
+                executeEcjCompile(module, mergedEcj, allSourceDirs, moduleClasspath);
             }
 
             // Step 2: GWT Compile
-            if (module.isGwtEnabled()) {
-                executeGwtCompile(module, moduleClasspath);
+            if (gwtEnabled) {
+                executeGwtCompile(module, mergedGwt, moduleClasspath);
             }
 
             // Step 3: CXF Compile
-            if (module.isCxfEnabled()) {
-                executeCxfCompile(module, moduleClasspath);
+            if (cxfEnabled) {
+                executeCxfCompile(module, mergedCxf, moduleClasspath);
             }
 
-            if (!module.isEcjEnabled() && !module.isGwtEnabled() && !module.isCxfEnabled()) {
+            if (!ecjEnabled && !gwtEnabled && !cxfEnabled) {
                 getLog().warn("Module '" + module.getDisplayName()
                         + "' has no build steps enabled, skipping.");
             }

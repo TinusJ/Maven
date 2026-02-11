@@ -358,6 +358,40 @@ public class BuildModule {
         public void setClasspathEntries(List<String> classpathEntries) {
             this.classpathEntries = classpathEntries;
         }
+
+        /**
+         * Creates a new {@link EcjCompileSettings} by merging global defaults with
+         * module-specific overrides. Module-specific non-null values take precedence
+         * over global defaults.
+         *
+         * @param defaults the global default settings (may be null)
+         * @param override the module-specific settings (may be null)
+         * @return a merged settings instance, or null if both inputs are null
+         */
+        public static EcjCompileSettings merge(EcjCompileSettings defaults, EcjCompileSettings override) {
+            if (defaults == null && override == null) {
+                return null;
+            }
+            if (defaults == null) {
+                return override;
+            }
+            if (override == null) {
+                return defaults;
+            }
+
+            EcjCompileSettings merged = new EcjCompileSettings();
+            merged.setEnabled(override.isEnabled());
+            merged.setSource(override.getSource() != null ? override.getSource() : defaults.getSource());
+            merged.setTarget(override.getTarget() != null ? override.getTarget() : defaults.getTarget());
+            merged.setPropertiesFile(override.getPropertiesFile() != null ? override.getPropertiesFile() : defaults.getPropertiesFile());
+            merged.setEncoding(override.getEncoding() != null ? override.getEncoding() : defaults.getEncoding());
+            merged.setNowarn(override.nowarn);
+            merged.setFailOnError(override.failOnError);
+            merged.setDebug(override.debug);
+            merged.setCompilerArguments(override.getCompilerArguments() != null ? override.getCompilerArguments() : defaults.getCompilerArguments());
+            merged.setClasspathEntries(override.getClasspathEntries() != null ? override.getClasspathEntries() : defaults.getClasspathEntries());
+            return merged;
+        }
     }
 
     /**
@@ -593,6 +627,46 @@ public class BuildModule {
         public void setSystemProperties(Map<String, String> systemProperties) {
             this.systemProperties = systemProperties;
         }
+
+        /**
+         * Creates a new {@link GwtCompileSettings} by merging global defaults with
+         * module-specific overrides. Module-specific non-null values take precedence
+         * over global defaults.
+         *
+         * @param defaults the global default settings (may be null)
+         * @param override the module-specific settings (may be null)
+         * @return a merged settings instance, or null if both inputs are null
+         */
+        public static GwtCompileSettings merge(GwtCompileSettings defaults, GwtCompileSettings override) {
+            if (defaults == null && override == null) {
+                return null;
+            }
+            if (defaults == null) {
+                return override;
+            }
+            if (override == null) {
+                return defaults;
+            }
+
+            GwtCompileSettings merged = new GwtCompileSettings();
+            merged.setEnabled(override.isEnabled());
+            merged.setGwtModules(override.getGwtModules() != null ? override.getGwtModules() : defaults.getGwtModules());
+            merged.setWarDirectory(override.getWarDirectory() != null ? override.getWarDirectory() : defaults.getWarDirectory());
+            merged.setStyle(override.style != null ? override.style : defaults.style);
+            merged.setLogLevel(override.logLevel != null ? override.logLevel : defaults.logLevel);
+            merged.setLocalWorkers(override.getLocalWorkers() != null ? override.getLocalWorkers() : defaults.getLocalWorkers());
+            merged.setOptimize(override.getOptimize() != null ? override.getOptimize() : defaults.getOptimize());
+            merged.setWorkDir(override.getWorkDir() != null ? override.getWorkDir() : defaults.getWorkDir());
+            merged.setExtraDir(override.getExtraDir() != null ? override.getExtraDir() : defaults.getExtraDir());
+            merged.setSaveSource(override.saveSource);
+            merged.setStrict(override.strict);
+            merged.setFailOnError(override.failOnError);
+            merged.setMethodNameDisplayMode(override.getMethodNameDisplayMode() != null ? override.getMethodNameDisplayMode() : defaults.getMethodNameDisplayMode());
+            merged.setClasspathEntries(override.getClasspathEntries() != null ? override.getClasspathEntries() : defaults.getClasspathEntries());
+            merged.setJvmArguments(override.getJvmArguments() != null ? override.getJvmArguments() : defaults.getJvmArguments());
+            merged.setSystemProperties(override.getSystemProperties() != null ? override.getSystemProperties() : defaults.getSystemProperties());
+            return merged;
+        }
     }
 
     /**
@@ -715,6 +789,38 @@ public class BuildModule {
 
         public void setArguments(List<String> arguments) {
             this.arguments = arguments;
+        }
+
+        /**
+         * Creates a new {@link CxfCompileSettings} by merging global defaults with
+         * module-specific overrides. Module-specific non-null values take precedence
+         * over global defaults.
+         *
+         * @param defaults the global default settings (may be null)
+         * @param override the module-specific settings (may be null)
+         * @return a merged settings instance, or null if both inputs are null
+         */
+        public static CxfCompileSettings merge(CxfCompileSettings defaults, CxfCompileSettings override) {
+            if (defaults == null && override == null) {
+                return null;
+            }
+            if (defaults == null) {
+                return override;
+            }
+            if (override == null) {
+                return defaults;
+            }
+
+            CxfCompileSettings merged = new CxfCompileSettings();
+            merged.setEnabled(override.isEnabled());
+            merged.setServiceClass(override.getServiceClass() != null ? override.getServiceClass() : defaults.getServiceClass());
+            merged.setOutputDirectory(override.getOutputDirectory() != null ? override.getOutputDirectory() : defaults.getOutputDirectory());
+            merged.setOutputFile(override.getOutputFile() != null ? override.getOutputFile() : defaults.getOutputFile());
+            merged.setGenerateWsdl(override.generateWsdl);
+            merged.setCreateXsdImports(override.createXsdImports);
+            merged.setClasspathEntries(override.getClasspathEntries() != null ? override.getClasspathEntries() : defaults.getClasspathEntries());
+            merged.setArguments(override.getArguments() != null ? override.getArguments() : defaults.getArguments());
+            return merged;
         }
     }
 }
