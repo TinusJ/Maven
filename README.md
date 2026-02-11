@@ -4,11 +4,11 @@ A Maven plugin that provides utilities for Java project builds, including classp
 
 ## Features
 
-- **Generate Classpath** — Collects source directories and resources into a single classpath file compatible with Java's `-cp @file` syntax
-- **Custom Compilation** — Compiles Java sources using javac or ECJ (Eclipse Compiler for Java) with multi-module and circular dependency support
-- **Java Process Execution** — Runs any Java main class as a forked process with full control over classpath, JVM arguments, and program arguments
-- **Multi-Module Build** — Orchestrates complex builds with per-module ECJ compilation, GWT compilation, CXF WSDL generation, and WAR packaging
-- **Docker Image Building** — Packages applications into OCI Docker images using Cloud Native Buildpacks
+- **Generate Classpath** — Collects source directories and resources into a single classpath file compatible with Java's `-cp @file` syntax.
+- **Custom Compilation** — Compiles Java sources using javac or ECJ (Eclipse Compiler for Java) with multi-module and circular dependency support.
+- **Java Process Execution** — Runs any Java main class as a forked process with full control over classpath, JVM arguments, and program arguments.
+- **Multi-Module Build** — Orchestrates complex builds with per-module ECJ compilation, GWT compilation, CXF WSDL generation, and WAR packaging.
+- **Docker Image Building** — Packages applications into OCI Docker images using Cloud Native Buildpacks.
 
 ## Requirements
 
