@@ -4,8 +4,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.buildpack.platform.docker.configuration.DockerConfiguration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for MavenDockerConfiguration.
@@ -122,28 +124,28 @@ public class MavenDockerConfigurationTest {
     @Test
     public void testRegistryAuthIsEmpty() {
         MavenDockerConfiguration.RegistryAuth auth = new MavenDockerConfiguration.RegistryAuth();
-        assert auth.isEmpty();
+        assertTrue(auth.isEmpty());
 
         auth.setUsername("user");
-        assert !auth.isEmpty();
+        assertFalse(auth.isEmpty());
     }
 
     @Test
     public void testRegistryAuthHasTokenAuth() {
         MavenDockerConfiguration.RegistryAuth auth = new MavenDockerConfiguration.RegistryAuth();
-        assert !auth.hasTokenAuth();
+        assertFalse(auth.hasTokenAuth());
 
         auth.setToken("token");
-        assert auth.hasTokenAuth();
+        assertTrue(auth.hasTokenAuth());
     }
 
     @Test
     public void testRegistryAuthHasUserAuth() {
         MavenDockerConfiguration.RegistryAuth auth = new MavenDockerConfiguration.RegistryAuth();
-        assert !auth.hasUserAuth();
+        assertFalse(auth.hasUserAuth());
 
         auth.setUsername("user");
         auth.setPassword("pass");
-        assert auth.hasUserAuth();
+        assertTrue(auth.hasUserAuth());
     }
 }
