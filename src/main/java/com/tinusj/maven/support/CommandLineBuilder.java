@@ -1,4 +1,4 @@
-package com.tinusj.maven.classpath;
+package com.tinusj.maven.support;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,7 +42,7 @@ import java.util.Objects;
  * @see <a href="https://github.com/spring-projects/spring-boot/blob/main/build-plugin/spring-boot-maven-plugin/src/main/java/org/springframework/boot/maven/CommandLineBuilder.java">
  *     Spring Boot CommandLineBuilder</a>
  */
-final class CommandLineBuilder {
+public final class CommandLineBuilder {
 
     private final List<String> jvmArguments = new ArrayList<>();
 
@@ -66,7 +66,7 @@ final class CommandLineBuilder {
      * @param mainClass the fully qualified main class name
      * @return a new builder instance
      */
-    static CommandLineBuilder forMainClass(String mainClass) {
+    public static CommandLineBuilder forMainClass(String mainClass) {
         return new CommandLineBuilder(mainClass);
     }
 
@@ -76,7 +76,7 @@ final class CommandLineBuilder {
      * @param jvmArguments the JVM arguments (e.g. {@code -Xmx512m})
      * @return this builder
      */
-    CommandLineBuilder withJvmArguments(String... jvmArguments) {
+    public CommandLineBuilder withJvmArguments(String... jvmArguments) {
         if (jvmArguments != null) {
             Arrays.stream(jvmArguments)
                     .filter(Objects::nonNull)
@@ -91,7 +91,7 @@ final class CommandLineBuilder {
      * @param systemProperties the system properties to add
      * @return this builder
      */
-    CommandLineBuilder withSystemProperties(Map<String, String> systemProperties) {
+    public CommandLineBuilder withSystemProperties(Map<String, String> systemProperties) {
         if (systemProperties != null) {
             this.systemProperties.putAll(systemProperties);
         }
@@ -104,7 +104,7 @@ final class CommandLineBuilder {
      * @param classPath the classpath
      * @return this builder
      */
-    CommandLineBuilder withClasspath(ClassPath classPath) {
+    public CommandLineBuilder withClasspath(ClassPath classPath) {
         this.classpathEntries.clear();
         if (classPath != null && !classPath.isEmpty()) {
             this.classpathEntries.add(classPath.toString());
@@ -118,7 +118,7 @@ final class CommandLineBuilder {
      * @param entries the classpath entries
      * @return this builder
      */
-    CommandLineBuilder withClasspathEntries(List<String> entries) {
+    public CommandLineBuilder withClasspathEntries(List<String> entries) {
         this.classpathEntries.clear();
         if (entries != null) {
             entries.stream()
@@ -134,7 +134,7 @@ final class CommandLineBuilder {
      * @param arguments the program arguments
      * @return this builder
      */
-    CommandLineBuilder withArguments(String... arguments) {
+    public CommandLineBuilder withArguments(String... arguments) {
         if (arguments != null) {
             Arrays.stream(arguments)
                     .filter(Objects::nonNull)
@@ -148,7 +148,7 @@ final class CommandLineBuilder {
      * @param arguments the program arguments
      * @return this builder
      */
-    CommandLineBuilder withArguments(List<String> arguments) {
+    public CommandLineBuilder withArguments(List<String> arguments) {
         if (arguments != null) {
             arguments.stream()
                     .filter(Objects::nonNull)
@@ -161,7 +161,7 @@ final class CommandLineBuilder {
      * Returns the main class name.
      * @return the main class
      */
-    String getMainClass() {
+    public String getMainClass() {
         return mainClass;
     }
 
@@ -178,7 +178,7 @@ final class CommandLineBuilder {
      * </ol>
      * @return an unmodifiable list of command-line arguments
      */
-    List<String> build() {
+    public List<String> build() {
         List<String> commandLine = new ArrayList<>();
 
         // JVM arguments

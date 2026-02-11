@@ -1,4 +1,6 @@
-package com.tinusj.maven.classpath;
+package com.tinusj.maven;
+
+import com.tinusj.maven.support.ClassPath;
 
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.AbstractMojo;

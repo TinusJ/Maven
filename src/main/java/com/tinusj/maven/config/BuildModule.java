@@ -1,4 +1,4 @@
-package com.tinusj.maven.classpath;
+package com.tinusj.maven.config;
 
 import org.apache.maven.plugins.annotations.Parameter;
 
