@@ -105,6 +105,13 @@ public class BuildModule {
     @Parameter
     private CxfCompileSettings cxfCompile;
 
+    /**
+     * WAR packaging settings for this module.
+     * If not configured or not enabled, WAR packaging is skipped.
+     */
+    @Parameter
+    private WarPackageSettings warPackage;
+
     // -- Getters and Setters --
 
     public String getName() {
@@ -171,6 +178,14 @@ public class BuildModule {
         this.cxfCompile = cxfCompile;
     }
 
+    public WarPackageSettings getWarPackage() {
+        return warPackage;
+    }
+
+    public void setWarPackage(WarPackageSettings warPackage) {
+        this.warPackage = warPackage;
+    }
+
     /**
      * Returns the display name for this module, falling back to the output directory path.
      */
@@ -203,6 +218,13 @@ public class BuildModule {
      */
     public boolean isCxfEnabled() {
         return cxfCompile != null && cxfCompile.isEnabled();
+    }
+
+    /**
+     * Returns true if this module has WAR packaging enabled.
+     */
+    public boolean isWarEnabled() {
+        return warPackage != null && warPackage.isEnabled();
     }
 
     // =====================================================================
@@ -820,6 +842,143 @@ public class BuildModule {
             merged.setCreateXsdImports(override.createXsdImports);
             merged.setClasspathEntries(override.getClasspathEntries() != null ? override.getClasspathEntries() : defaults.getClasspathEntries());
             merged.setArguments(override.getArguments() != null ? override.getArguments() : defaults.getArguments());
+            return merged;
+        }
+    }
+
+    /**
+     * WAR packaging settings for a module.
+     *
+     * <p>Creates a WAR file from a source directory. The source directory should contain
+     * the web application content (e.g. WEB-INF/web.xml). Compiled classes and libraries
+     * can be included from the module's output directory.</p>
+     *
+     * <p>Example usage:</p>
+     * <pre>
+     * &lt;warPackage&gt;
+     *     &lt;enabled&gt;true&lt;/enabled&gt;
+     *     &lt;warSourceDirectory&gt;${rootDir}/GWT/war&lt;/warSourceDirectory&gt;
+     *     &lt;warFile&gt;${project.build.directory}/myapp.war&lt;/warFile&gt;
+     * &lt;/warPackage&gt;
+     * </pre>
+     */
+    public static class WarPackageSettings {
+
+        /**
+         * Whether WAR packaging is enabled for this module.
+         */
+        @Parameter(defaultValue = "false")
+        private boolean enabled;
+
+        /**
+         * The source directory containing web application content (e.g. WEB-INF/web.xml, static files).
+         * This is the root of the WAR contents.
+         */
+        @Parameter
+        private File warSourceDirectory;
+
+        /**
+         * The output WAR file path.
+         */
+        @Parameter
+        private File warFile;
+
+        /**
+         * Whether to include the module's compiled classes directory in WEB-INF/classes.
+         */
+        @Parameter(defaultValue = "true")
+        private boolean includeClasses = true;
+
+        /**
+         * Additional directories whose contents should be added to the WAR root.
+         * Useful for including compiled output from other steps (e.g. GWT output).
+         */
+        @Parameter
+        private List<String> additionalContentDirectories;
+
+        /**
+         * Additional library JAR files to include in WEB-INF/lib.
+         */
+        @Parameter
+        private List<String> libEntries;
+
+        // -- Getters and Setters --
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public File getWarSourceDirectory() {
+            return warSourceDirectory;
+        }
+
+        public void setWarSourceDirectory(File warSourceDirectory) {
+            this.warSourceDirectory = warSourceDirectory;
+        }
+
+        public File getWarFile() {
+            return warFile;
+        }
+
+        public void setWarFile(File warFile) {
+            this.warFile = warFile;
+        }
+
+        public boolean isIncludeClasses() {
+            return includeClasses;
+        }
+
+        public void setIncludeClasses(boolean includeClasses) {
+            this.includeClasses = includeClasses;
+        }
+
+        public List<String> getAdditionalContentDirectories() {
+            return additionalContentDirectories;
+        }
+
+        public void setAdditionalContentDirectories(List<String> additionalContentDirectories) {
+            this.additionalContentDirectories = additionalContentDirectories;
+        }
+
+        public List<String> getLibEntries() {
+            return libEntries;
+        }
+
+        public void setLibEntries(List<String> libEntries) {
+            this.libEntries = libEntries;
+        }
+
+        /**
+         * Creates a new {@link WarPackageSettings} by merging global defaults with
+         * module-specific overrides. Module-specific non-null values take precedence
+         * over global defaults.
+         *
+         * @param defaults the global default settings (may be null)
+         * @param override the module-specific settings (may be null)
+         * @return a merged settings instance, or null if both inputs are null
+         */
+        public static WarPackageSettings merge(WarPackageSettings defaults, WarPackageSettings override) {
+            if (defaults == null && override == null) {
+                return null;
+            }
+            if (defaults == null) {
+                return override;
+            }
+            if (override == null) {
+                return defaults;
+            }
+
+            WarPackageSettings merged = new WarPackageSettings();
+            merged.setEnabled(override.isEnabled());
+            merged.setWarSourceDirectory(override.getWarSourceDirectory() != null ? override.getWarSourceDirectory() : defaults.getWarSourceDirectory());
+            merged.setWarFile(override.getWarFile() != null ? override.getWarFile() : defaults.getWarFile());
+            merged.setIncludeClasses(override.includeClasses);
+            merged.setAdditionalContentDirectories(override.getAdditionalContentDirectories() != null ? override.getAdditionalContentDirectories() : defaults.getAdditionalContentDirectories());
+            merged.setLibEntries(override.getLibEntries() != null ? override.getLibEntries() : defaults.getLibEntries());
             return merged;
         }
     }

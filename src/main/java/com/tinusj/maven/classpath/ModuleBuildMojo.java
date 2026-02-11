@@ -184,6 +184,13 @@ public class ModuleBuildMojo extends AbstractMojo {
     @Parameter
     private BuildModule.CxfCompileSettings defaultCxfCompile;
 
+    /**
+     * Global default WAR packaging settings. Applied to all modules that have WAR packaging enabled
+     * but don't specify their own values. Module-specific settings override these defaults.
+     */
+    @Parameter
+    private BuildModule.WarPackageSettings defaultWarPackage;
+
     private static final String GWT_COMPILER_CLASS = "com.google.gwt.dev.Compiler";
     private static final String CXF_JAVA2WS_CLASS = "org.apache.cxf.tools.java2ws.JavaToWS";
 
@@ -218,10 +225,13 @@ public class ModuleBuildMojo extends AbstractMojo {
                     defaultGwtCompile, module.getGwtCompile());
             BuildModule.CxfCompileSettings mergedCxf = BuildModule.CxfCompileSettings.merge(
                     defaultCxfCompile, module.getCxfCompile());
+            BuildModule.WarPackageSettings mergedWar = BuildModule.WarPackageSettings.merge(
+                    defaultWarPackage, module.getWarPackage());
 
             boolean ecjEnabled = mergedEcj != null && mergedEcj.isEnabled();
             boolean gwtEnabled = mergedGwt != null && mergedGwt.isEnabled();
             boolean cxfEnabled = mergedCxf != null && mergedCxf.isEnabled();
+            boolean warEnabled = mergedWar != null && mergedWar.isEnabled();
 
             // Build module classpath (all module output dirs + dependency classpath + module-specific entries)
             ClassPath moduleClasspath = buildModuleClasspath(resolved, dependencyClasspath, module);
@@ -241,7 +251,12 @@ public class ModuleBuildMojo extends AbstractMojo {
                 executeCxfCompile(module, mergedCxf, moduleClasspath);
             }
 
-            if (!ecjEnabled && !gwtEnabled && !cxfEnabled) {
+            // Step 4: WAR Packaging
+            if (warEnabled) {
+                executeWarPackage(module, mergedWar);
+            }
+
+            if (!ecjEnabled && !gwtEnabled && !cxfEnabled && !warEnabled) {
                 getLog().warn("Module '" + module.getDisplayName()
                         + "' has no build steps enabled, skipping.");
             }
@@ -253,17 +268,22 @@ public class ModuleBuildMojo extends AbstractMojo {
     }
 
     /**
-     * Resolves the list of build modules, filtering out those with no valid source directories.
+     * Resolves the list of build modules. Modules are included if they have source directories,
+     * an output directory, or any build step configured (to support WAR-only modules
+     * that may not have Java sources).
      */
     List<BuildModule> resolveModules() {
         List<BuildModule> resolved = new ArrayList<>();
         if (buildModules != null) {
             for (BuildModule module : buildModules) {
-                if (module.getSourceDirectories() != null && !module.getSourceDirectories().isEmpty()) {
+                boolean hasSources = module.getSourceDirectories() != null && !module.getSourceDirectories().isEmpty();
+                boolean hasOutput = module.getOutputDirectory() != null;
+                boolean hasWarPackage = module.getWarPackage() != null;
+                if (hasSources || hasOutput || hasWarPackage) {
                     resolved.add(module);
                 } else {
                     getLog().warn("Module '" + module.getDisplayName()
-                            + "' has no source directories, skipping.");
+                            + "' has no source directories or build steps, skipping.");
                 }
             }
         }
@@ -340,14 +360,11 @@ public class ModuleBuildMojo extends AbstractMojo {
     // =====================================================================
 
     /**
-     * Executes ECJ compilation for a module using the module's ECJ settings.
-     * Builds ECJ command-line arguments and delegates to the CompilerMojo's ECJ logic
-     * through a forked process approach.
+     * Executes ECJ compilation for a module using the merged ECJ settings.
      */
-    void executeEcjCompile(BuildModule module, List<String> allSourceDirs,
-                           ClassPath moduleClasspath)
+    void executeEcjCompile(BuildModule module, BuildModule.EcjCompileSettings ecj,
+                           List<String> allSourceDirs, ClassPath moduleClasspath)
             throws MojoExecutionException {
-        BuildModule.EcjCompileSettings ecj = module.getEcjCompile();
         getLog().info("[" + module.getDisplayName() + "] ECJ Compile starting...");
 
         File outputDir = module.getOutputDirectory();
@@ -439,11 +456,11 @@ public class ModuleBuildMojo extends AbstractMojo {
     // =====================================================================
 
     /**
-     * Executes GWT compilation for a module by building a forked Java process command.
+     * Executes GWT compilation for a module using the merged GWT settings.
      */
-    void executeGwtCompile(BuildModule module, ClassPath moduleClasspath)
+    void executeGwtCompile(BuildModule module, BuildModule.GwtCompileSettings gwt,
+                           ClassPath moduleClasspath)
             throws MojoExecutionException {
-        BuildModule.GwtCompileSettings gwt = module.getGwtCompile();
         getLog().info("[" + module.getDisplayName() + "] GWT Compile starting...");
 
         if (gwt.getGwtModules() == null || gwt.getGwtModules().isEmpty()) {
@@ -578,11 +595,11 @@ public class ModuleBuildMojo extends AbstractMojo {
     // =====================================================================
 
     /**
-     * Executes CXF WSDL generation for a module by building a forked Java process command.
+     * Executes CXF WSDL generation for a module using the merged CXF settings.
      */
-    void executeCxfCompile(BuildModule module, ClassPath moduleClasspath)
+    void executeCxfCompile(BuildModule module, BuildModule.CxfCompileSettings cxf,
+                           ClassPath moduleClasspath)
             throws MojoExecutionException {
-        BuildModule.CxfCompileSettings cxf = module.getCxfCompile();
         getLog().info("[" + module.getDisplayName() + "] CXF WSDL generation starting...");
 
         if (cxf.getServiceClass() == null || cxf.getServiceClass().isEmpty()) {
@@ -664,6 +681,131 @@ public class ModuleBuildMojo extends AbstractMojo {
         }
 
         return args;
+    }
+
+    // =====================================================================
+    // WAR Packaging Step
+    // =====================================================================
+
+    /**
+     * Executes WAR packaging for a module using the merged WAR settings.
+     * Creates a WAR file by copying web content, compiled classes, and libraries.
+     */
+    void executeWarPackage(BuildModule module, BuildModule.WarPackageSettings war)
+            throws MojoExecutionException {
+        getLog().info("[" + module.getDisplayName() + "] WAR Packaging starting...");
+
+        File warSourceDir = war.getWarSourceDirectory();
+        File warFile = war.getWarFile();
+
+        if (warSourceDir == null || !warSourceDir.exists()) {
+            getLog().warn("[" + module.getDisplayName()
+                    + "] WAR source directory does not exist: "
+                    + (warSourceDir != null ? warSourceDir.getAbsolutePath() : "null")
+                    + ", skipping WAR packaging.");
+            return;
+        }
+
+        if (warFile == null) {
+            throw new MojoExecutionException("[" + module.getDisplayName()
+                    + "] warFile is required for WAR packaging.");
+        }
+
+        // Ensure output directory exists
+        File warFileParent = warFile.getParentFile();
+        if (warFileParent != null && !warFileParent.exists() && !warFileParent.mkdirs()) {
+            throw new MojoExecutionException(
+                    "Failed to create WAR output directory: " + warFileParent.getAbsolutePath());
+        }
+
+        try {
+            createWarFile(module, war, warSourceDir, warFile);
+            getLog().info("[" + module.getDisplayName() + "] WAR created: "
+                    + warFile.getAbsolutePath());
+        } catch (IOException e) {
+            throw new MojoExecutionException("[" + module.getDisplayName()
+                    + "] Failed to create WAR file", e);
+        }
+    }
+
+    /**
+     * Creates a WAR file from the given source directory. The WAR includes:
+     * <ul>
+     *   <li>All content from the WAR source directory (e.g. WEB-INF/web.xml, static files)</li>
+     *   <li>Compiled classes in WEB-INF/classes (if includeClasses is true and module has an output dir)</li>
+     *   <li>Additional content directories overlaid on the WAR root</li>
+     *   <li>Library JARs in WEB-INF/lib</li>
+     * </ul>
+     */
+    void createWarFile(BuildModule module, BuildModule.WarPackageSettings war,
+                       File warSourceDir, File warFile) throws IOException {
+        try (java.util.jar.JarOutputStream jos = new java.util.jar.JarOutputStream(
+                new java.io.FileOutputStream(warFile))) {
+            java.util.Set<String> addedEntries = new java.util.HashSet<>();
+
+            // Add WAR source directory contents
+            addDirectoryToJar(jos, warSourceDir, "", addedEntries);
+
+            // Add compiled classes to WEB-INF/classes
+            if (war.isIncludeClasses() && module.getOutputDirectory() != null
+                    && module.getOutputDirectory().exists()) {
+                addDirectoryToJar(jos, module.getOutputDirectory(), "WEB-INF/classes/", addedEntries);
+            }
+
+            // Add additional content directories
+            if (war.getAdditionalContentDirectories() != null) {
+                for (String dirPath : war.getAdditionalContentDirectories()) {
+                    File dir = new File(dirPath);
+                    if (dir.exists() && dir.isDirectory()) {
+                        addDirectoryToJar(jos, dir, "", addedEntries);
+                    }
+                }
+            }
+
+            // Add library JARs to WEB-INF/lib
+            if (war.getLibEntries() != null) {
+                for (String libPath : war.getLibEntries()) {
+                    File libFile = new File(libPath);
+                    if (libFile.exists() && libFile.isFile()) {
+                        String entryName = "WEB-INF/lib/" + libFile.getName();
+                        if (addedEntries.add(entryName)) {
+                            jos.putNextEntry(new java.util.jar.JarEntry(entryName));
+                            java.nio.file.Files.copy(libFile.toPath(), jos);
+                            jos.closeEntry();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Recursively adds a directory's contents to a JAR/WAR output stream.
+     */
+    private void addDirectoryToJar(java.util.jar.JarOutputStream jos, File sourceDir,
+                                   String prefix, java.util.Set<String> addedEntries)
+            throws IOException {
+        File[] files = sourceDir.listFiles();
+        if (files == null) {
+            return;
+        }
+        for (File file : files) {
+            String entryName = prefix + file.getName();
+            if (file.isDirectory()) {
+                String dirEntry = entryName + "/";
+                if (addedEntries.add(dirEntry)) {
+                    jos.putNextEntry(new java.util.jar.JarEntry(dirEntry));
+                    jos.closeEntry();
+                }
+                addDirectoryToJar(jos, file, entryName + "/", addedEntries);
+            } else {
+                if (addedEntries.add(entryName)) {
+                    jos.putNextEntry(new java.util.jar.JarEntry(entryName));
+                    java.nio.file.Files.copy(file.toPath(), jos);
+                    jos.closeEntry();
+                }
+            }
+        }
     }
 
     // =====================================================================

@@ -20,6 +20,8 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ModuleBuildMojoTest {
@@ -63,14 +65,40 @@ public class ModuleBuildMojoTest {
     }
 
     @Test
-    public void testResolveModulesSkipsNoSourceDirs() throws Exception {
+    public void testResolveModulesSkipsNoSourceDirsNoOutputNoSteps() throws Exception {
         BuildModule mod = new BuildModule();
         mod.setName("no-sources");
-        mod.setOutputDirectory(new File(tempFolder, "out"));
+        // No source directories, no output directory, no WAR package — should be skipped
 
         setField(mojo, "buildModules", Arrays.asList(mod));
         List<BuildModule> resolved = mojo.resolveModules();
         assertTrue(resolved.isEmpty());
+    }
+
+    @Test
+    public void testResolveModulesAcceptsModuleWithOutputDirOnly() throws Exception {
+        BuildModule mod = new BuildModule();
+        mod.setName("output-only");
+        mod.setOutputDirectory(new File(tempFolder, "out"));
+
+        setField(mojo, "buildModules", Arrays.asList(mod));
+        List<BuildModule> resolved = mojo.resolveModules();
+        assertEquals(1, resolved.size());
+    }
+
+    @Test
+    public void testResolveModulesAcceptsWarOnlyModule() throws Exception {
+        BuildModule mod = new BuildModule();
+        mod.setName("war-only");
+        BuildModule.WarPackageSettings war = new BuildModule.WarPackageSettings();
+        war.setEnabled(true);
+        war.setWarSourceDirectory(new File(tempFolder, "web"));
+        war.setWarFile(new File(tempFolder, "out.war"));
+        mod.setWarPackage(war);
+
+        setField(mojo, "buildModules", Arrays.asList(mod));
+        List<BuildModule> resolved = mojo.resolveModules();
+        assertEquals(1, resolved.size());
     }
 
     @Test
@@ -705,6 +733,302 @@ public class ModuleBuildMojoTest {
         assertFalse(cxf.isEnabled());
         assertTrue(cxf.isGenerateWsdl());
         assertFalse(cxf.isCreateXsdImports());
+    }
+
+    // =====================================================================
+    // Global Defaults Merge Tests
+    // =====================================================================
+
+    @Test
+    public void testEcjMergeGlobalDefaultsApplied() throws Exception {
+        BuildModule.EcjCompileSettings global = new BuildModule.EcjCompileSettings();
+        global.setSource("21");
+        global.setTarget("21");
+        global.setEncoding("Cp1252");
+        global.setDebug(false);
+
+        // Module only sets enabled, everything else comes from global
+        BuildModule.EcjCompileSettings moduleEcj = new BuildModule.EcjCompileSettings();
+        moduleEcj.setEnabled(true);
+        moduleEcj.setDebug(false); // Explicitly match global
+
+        BuildModule.EcjCompileSettings merged = BuildModule.EcjCompileSettings.merge(global, moduleEcj);
+
+        assertTrue(merged.isEnabled());
+        assertEquals("21", merged.getSource());
+        assertEquals("21", merged.getTarget());
+        assertEquals("Cp1252", merged.getEncoding());
+        assertFalse(merged.isDebug());
+    }
+
+    @Test
+    public void testEcjMergeModuleOverridesGlobal() throws Exception {
+        BuildModule.EcjCompileSettings global = new BuildModule.EcjCompileSettings();
+        global.setSource("17");
+        global.setTarget("17");
+        global.setEncoding("UTF-8");
+
+        BuildModule.EcjCompileSettings moduleEcj = new BuildModule.EcjCompileSettings();
+        moduleEcj.setEnabled(true);
+        moduleEcj.setSource("21");
+        // target not set, encoding not set — should come from global
+
+        BuildModule.EcjCompileSettings merged = BuildModule.EcjCompileSettings.merge(global, moduleEcj);
+
+        assertEquals("21", merged.getSource()); // overridden
+        assertEquals("17", merged.getTarget()); // from global
+        assertEquals("UTF-8", merged.getEncoding()); // from global
+    }
+
+    @Test
+    public void testEcjMergeNullGlobal() {
+        BuildModule.EcjCompileSettings moduleEcj = new BuildModule.EcjCompileSettings();
+        moduleEcj.setEnabled(true);
+        moduleEcj.setSource("21");
+
+        BuildModule.EcjCompileSettings merged = BuildModule.EcjCompileSettings.merge(null, moduleEcj);
+        assertEquals("21", merged.getSource());
+        assertTrue(merged.isEnabled());
+    }
+
+    @Test
+    public void testEcjMergeNullModule() {
+        BuildModule.EcjCompileSettings global = new BuildModule.EcjCompileSettings();
+        global.setSource("21");
+
+        BuildModule.EcjCompileSettings merged = BuildModule.EcjCompileSettings.merge(global, null);
+        assertEquals("21", merged.getSource());
+    }
+
+    @Test
+    public void testEcjMergeBothNull() {
+        assertNull(BuildModule.EcjCompileSettings.merge(null, null));
+    }
+
+    @Test
+    public void testGwtMergeGlobalDefaultsApplied() {
+        BuildModule.GwtCompileSettings global = new BuildModule.GwtCompileSettings();
+        global.setWarDirectory("/global/war");
+        global.setStyle("OBF");
+        global.setLocalWorkers("4");
+
+        BuildModule.GwtCompileSettings moduleGwt = new BuildModule.GwtCompileSettings();
+        moduleGwt.setEnabled(true);
+        moduleGwt.setGwtModules(Arrays.asList("com.example.MyModule"));
+
+        BuildModule.GwtCompileSettings merged = BuildModule.GwtCompileSettings.merge(global, moduleGwt);
+
+        assertTrue(merged.isEnabled());
+        assertEquals("/global/war", merged.getWarDirectory());
+        assertEquals("OBF", merged.getStyle());
+        assertEquals("4", merged.getLocalWorkers());
+        assertEquals(Arrays.asList("com.example.MyModule"), merged.getGwtModules());
+    }
+
+    @Test
+    public void testGwtMergeModuleOverridesGlobal() {
+        BuildModule.GwtCompileSettings global = new BuildModule.GwtCompileSettings();
+        global.setWarDirectory("/global/war");
+        global.setStyle("OBF");
+
+        BuildModule.GwtCompileSettings moduleGwt = new BuildModule.GwtCompileSettings();
+        moduleGwt.setEnabled(true);
+        moduleGwt.setStyle("PRETTY");
+
+        BuildModule.GwtCompileSettings merged = BuildModule.GwtCompileSettings.merge(global, moduleGwt);
+
+        assertEquals("PRETTY", merged.getStyle());
+        assertEquals("/global/war", merged.getWarDirectory());
+    }
+
+    @Test
+    public void testCxfMergeGlobalDefaultsApplied() {
+        BuildModule.CxfCompileSettings global = new BuildModule.CxfCompileSettings();
+        global.setCreateXsdImports(true);
+
+        BuildModule.CxfCompileSettings moduleCxf = new BuildModule.CxfCompileSettings();
+        moduleCxf.setEnabled(true);
+        moduleCxf.setServiceClass("com.example.Service");
+        moduleCxf.setCreateXsdImports(true); // Explicitly match global
+
+        BuildModule.CxfCompileSettings merged = BuildModule.CxfCompileSettings.merge(global, moduleCxf);
+
+        assertTrue(merged.isEnabled());
+        assertTrue(merged.isCreateXsdImports());
+        assertEquals("com.example.Service", merged.getServiceClass());
+    }
+
+    @Test
+    public void testGlobalDefaultsUsedInBuildEcjArguments() throws Exception {
+        File srcDir = new File(tempFolder, "ecj-global-src");
+        srcDir.mkdirs();
+        File outDir = new File(tempFolder, "ecj-global-out");
+
+        // Set global defaults on the mojo
+        BuildModule.EcjCompileSettings global = new BuildModule.EcjCompileSettings();
+        global.setSource("21");
+        global.setTarget("21");
+        global.setEncoding("Cp1252");
+        setField(mojo, "defaultEcjCompile", global);
+
+        BuildModule mod = new BuildModule();
+        mod.setSourceDirectories(Arrays.asList(srcDir.getAbsolutePath()));
+        mod.setOutputDirectory(outDir);
+
+        // Module only has enabled=true, no source/target/encoding
+        BuildModule.EcjCompileSettings moduleEcj = new BuildModule.EcjCompileSettings();
+        moduleEcj.setEnabled(true);
+
+        BuildModule.EcjCompileSettings merged = BuildModule.EcjCompileSettings.merge(global, moduleEcj);
+        List<String> args = mojo.buildEcjArguments(mod, merged,
+                Arrays.asList(srcDir.getAbsolutePath()), ClassPath.empty());
+
+        assertTrue(args.contains("-source"));
+        assertTrue(args.contains("21"));
+        assertTrue(args.contains("-encoding"));
+        assertTrue(args.contains("Cp1252"));
+    }
+
+    // =====================================================================
+    // WAR Packaging Tests
+    // =====================================================================
+
+    @Test
+    public void testWarPackageSettingsDefaults() {
+        BuildModule.WarPackageSettings war = new BuildModule.WarPackageSettings();
+        assertFalse(war.isEnabled());
+        assertTrue(war.isIncludeClasses());
+    }
+
+    @Test
+    public void testWarMergeGlobalDefaultsApplied() {
+        BuildModule.WarPackageSettings global = new BuildModule.WarPackageSettings();
+        global.setWarSourceDirectory(new File("/global/war"));
+
+        BuildModule.WarPackageSettings moduleWar = new BuildModule.WarPackageSettings();
+        moduleWar.setEnabled(true);
+        moduleWar.setWarFile(new File("/out/myapp.war"));
+
+        BuildModule.WarPackageSettings merged = BuildModule.WarPackageSettings.merge(global, moduleWar);
+
+        assertTrue(merged.isEnabled());
+        assertEquals(new File("/global/war"), merged.getWarSourceDirectory());
+        assertEquals(new File("/out/myapp.war"), merged.getWarFile());
+    }
+
+    @Test
+    public void testWarMergeBothNull() {
+        assertNull(BuildModule.WarPackageSettings.merge(null, null));
+    }
+
+    @Test
+    public void testBuildModuleWarEnabled() {
+        BuildModule mod = new BuildModule();
+        assertFalse(mod.isWarEnabled());
+
+        BuildModule.WarPackageSettings war = new BuildModule.WarPackageSettings();
+        war.setEnabled(true);
+        mod.setWarPackage(war);
+        assertTrue(mod.isWarEnabled());
+    }
+
+    @Test
+    public void testExecuteWarPackageCreatesWarFile() throws Exception {
+        // Create WAR source directory with web.xml
+        File warSrcDir = new File(tempFolder, "war-src");
+        File webInfDir = new File(warSrcDir, "WEB-INF");
+        webInfDir.mkdirs();
+        createFile(new File(webInfDir, "web.xml"),
+                "<?xml version=\"1.0\"?>\n<web-app></web-app>");
+
+        File warFile = new File(tempFolder, "output.war");
+
+        BuildModule mod = new BuildModule();
+        mod.setName("war-test");
+
+        BuildModule.WarPackageSettings war = new BuildModule.WarPackageSettings();
+        war.setEnabled(true);
+        war.setWarSourceDirectory(warSrcDir);
+        war.setWarFile(warFile);
+        war.setIncludeClasses(false);
+
+        mojo.executeWarPackage(mod, war);
+
+        assertTrue(warFile.exists(), "WAR file should exist");
+        assertTrue(warFile.length() > 0, "WAR file should not be empty");
+
+        // Verify contents
+        try (java.util.jar.JarFile jar = new java.util.jar.JarFile(warFile)) {
+            assertNotNull(jar.getEntry("WEB-INF/"), "WEB-INF/ should exist in WAR");
+            assertNotNull(jar.getEntry("WEB-INF/web.xml"), "WEB-INF/web.xml should exist in WAR");
+        }
+    }
+
+    @Test
+    public void testExecuteWarPackageWithClasses() throws Exception {
+        // Create WAR source directory with web.xml
+        File warSrcDir = new File(tempFolder, "war-src2");
+        File webInfDir = new File(warSrcDir, "WEB-INF");
+        webInfDir.mkdirs();
+        createFile(new File(webInfDir, "web.xml"), "<web-app/>");
+
+        // Create classes directory
+        File classesDir = new File(tempFolder, "classes2");
+        classesDir.mkdirs();
+        createFile(new File(classesDir, "Hello.class"), "fake class content");
+
+        File warFile = new File(tempFolder, "output-with-classes.war");
+
+        BuildModule mod = new BuildModule();
+        mod.setName("war-classes");
+        mod.setOutputDirectory(classesDir);
+
+        BuildModule.WarPackageSettings war = new BuildModule.WarPackageSettings();
+        war.setEnabled(true);
+        war.setWarSourceDirectory(warSrcDir);
+        war.setWarFile(warFile);
+        war.setIncludeClasses(true);
+
+        mojo.executeWarPackage(mod, war);
+
+        assertTrue(warFile.exists());
+        try (java.util.jar.JarFile jar = new java.util.jar.JarFile(warFile)) {
+            assertNotNull(jar.getEntry("WEB-INF/web.xml"));
+            assertNotNull(jar.getEntry("WEB-INF/classes/Hello.class"),
+                    "Compiled classes should be in WEB-INF/classes/");
+        }
+    }
+
+    @Test
+    public void testExecuteWarPackageSkipsNonExistentSourceDir() throws Exception {
+        BuildModule mod = new BuildModule();
+        mod.setName("war-missing-src");
+
+        BuildModule.WarPackageSettings war = new BuildModule.WarPackageSettings();
+        war.setEnabled(true);
+        war.setWarSourceDirectory(new File("/nonexistent/war-dir"));
+        war.setWarFile(new File(tempFolder, "missing.war"));
+
+        // Should not throw, just log warning
+        mojo.executeWarPackage(mod, war);
+
+        assertFalse(new File(tempFolder, "missing.war").exists());
+    }
+
+    @Test
+    public void testExecuteWarPackageNullWarFile() throws Exception {
+        File warSrcDir = new File(tempFolder, "war-null-file");
+        warSrcDir.mkdirs();
+
+        BuildModule mod = new BuildModule();
+        mod.setName("war-null-file");
+
+        BuildModule.WarPackageSettings war = new BuildModule.WarPackageSettings();
+        war.setEnabled(true);
+        war.setWarSourceDirectory(warSrcDir);
+        war.setWarFile(null);
+
+        assertThrows(MojoExecutionException.class, () -> mojo.executeWarPackage(mod, war));
     }
 
     // =====================================================================
