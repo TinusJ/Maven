@@ -220,7 +220,7 @@ public class CompilerMojo extends AbstractMojo {
         List<String> allSourceDirs = collectAllSourceDirectories(resolvedModules);
 
         // Build dependency classpath (project dependencies)
-        String dependencyClasspath = buildDependencyClasspath();
+        ClassPath dependencyClasspath = buildDependencyClasspath();
 
         // Compile each module
         String compilerType = compiler.toLowerCase().trim();
@@ -306,7 +306,7 @@ public class CompilerMojo extends AbstractMojo {
      */
     void compileModule(CompilerModule module, List<CompilerModule> allModules,
                        List<String> allSourceDirs,
-                       String dependencyClasspath, String compilerType)
+                       ClassPath dependencyClasspath, String compilerType)
             throws MojoExecutionException {
         File moduleOutputDir = module.getOutputDirectory();
         List<String> moduleSourceDirs = validateDirectories(module.getSourceDirectories());
@@ -328,10 +328,10 @@ public class CompilerMojo extends AbstractMojo {
         }
 
         // Build the full classpath: all module output directories + dependency classpath
-        String classpath = buildModuleClasspath(allModules, dependencyClasspath);
+        ClassPath classpath = buildModuleClasspath(allModules, dependencyClasspath);
 
         // Build the sourcepath: all modules' source directories
-        String sourcepath = buildSourcepath(allSourceDirs);
+        ClassPath sourcepath = buildSourcepath(allSourceDirs);
 
         if (COMPILER_JAVAC.equals(compilerType)) {
             compileWithJavac(sourceFiles, classpath, sourcepath, moduleOutputDir);
@@ -369,9 +369,9 @@ public class CompilerMojo extends AbstractMojo {
     }
 
     /**
-     * Builds a classpath string from project compile dependencies.
+     * Builds a classpath from project compile dependencies.
      */
-    String buildDependencyClasspath() throws MojoExecutionException {
+    ClassPath buildDependencyClasspath() throws MojoExecutionException {
         List<String> elements = new ArrayList<>();
         try {
             List<String> compileElements = project.getCompileClasspathElements();
@@ -388,15 +388,14 @@ public class CompilerMojo extends AbstractMojo {
             throw new MojoExecutionException("Failed to resolve compile classpath", e);
         }
 
-        String separator = System.getProperty("path.separator");
-        return String.join(separator, elements);
+        return ClassPath.of(elements);
     }
 
     /**
      * Builds the full module classpath by combining all module output directories
      * with the dependency classpath.
      */
-    String buildModuleClasspath(List<CompilerModule> resolvedModules, String dependencyClasspath) {
+    ClassPath buildModuleClasspath(List<CompilerModule> resolvedModules, ClassPath dependencyClasspath) {
         List<String> elements = new ArrayList<>();
 
         // Add all module output directories to classpath
@@ -406,27 +405,21 @@ public class CompilerMojo extends AbstractMojo {
             }
         }
 
-        if (dependencyClasspath != null && !dependencyClasspath.isEmpty()) {
-            elements.add(dependencyClasspath);
-        }
-
-        String separator = System.getProperty("path.separator");
-        return String.join(separator, elements);
+        return ClassPath.of(elements).append(dependencyClasspath);
     }
 
     /**
-     * Builds a sourcepath string from all source directories.
+     * Builds a sourcepath from all source directories.
      */
-    String buildSourcepath(List<String> allSourceDirs) {
-        String separator = System.getProperty("path.separator");
-        return String.join(separator, allSourceDirs);
+    ClassPath buildSourcepath(List<String> allSourceDirs) {
+        return ClassPath.of(allSourceDirs);
     }
 
     /**
      * Compiles source files using the standard javac compiler via javax.tools API.
      */
-    void compileWithJavac(List<File> sourceFiles, String classpath,
-                          String sourcepath, File outputDir)
+    void compileWithJavac(List<File> sourceFiles, ClassPath classpath,
+                          ClassPath sourcepath, File outputDir)
             throws MojoExecutionException {
         getLog().info("Compiling with javac (source=" + source + ", target=" + target + ")");
 
@@ -466,7 +459,7 @@ public class CompilerMojo extends AbstractMojo {
     /**
      * Builds the option list for javac compilation.
      */
-    List<String> buildJavacOptions(String classpath, String sourcepath, File outputDir) {
+    List<String> buildJavacOptions(ClassPath classpath, ClassPath sourcepath, File outputDir) {
         List<String> options = new ArrayList<>();
 
         if (source != null && !source.isEmpty()) {
@@ -482,15 +475,9 @@ public class CompilerMojo extends AbstractMojo {
         options.add("-d");
         options.add(outputDir.getAbsolutePath());
 
-        if (classpath != null && !classpath.isEmpty()) {
-            options.add("-classpath");
-            options.add(classpath);
-        }
+        options.addAll(classpath.args("-classpath"));
 
-        if (sourcepath != null && !sourcepath.isEmpty()) {
-            options.add("-sourcepath");
-            options.add(sourcepath);
-        }
+        options.addAll(sourcepath.args("-sourcepath"));
 
         if (!showWarnings) {
             options.add("-nowarn");
@@ -512,8 +499,8 @@ public class CompilerMojo extends AbstractMojo {
      * ECJ must be available on the plugin's classpath (added as a plugin dependency).
      * Supports passing a properties file for ECJ configuration.
      */
-    void compileWithEcj(List<File> sourceFiles, String classpath,
-                        String sourcepath, File outputDir)
+    void compileWithEcj(List<File> sourceFiles, ClassPath classpath,
+                        ClassPath sourcepath, File outputDir)
             throws MojoExecutionException {
         getLog().info("Compiling with ECJ (source=" + source + ", target=" + target + ")");
 
@@ -543,8 +530,8 @@ public class CompilerMojo extends AbstractMojo {
     /**
      * Builds the argument list for ECJ compilation.
      */
-    List<String> buildEcjArguments(List<File> sourceFiles, String classpath,
-                                   String sourcepath, File outputDir) {
+    List<String> buildEcjArguments(List<File> sourceFiles, ClassPath classpath,
+                                   ClassPath sourcepath, File outputDir) {
         List<String> args = new ArrayList<>();
 
         if (source != null && !source.isEmpty()) {
@@ -560,15 +547,9 @@ public class CompilerMojo extends AbstractMojo {
         args.add("-d");
         args.add(outputDir.getAbsolutePath());
 
-        if (classpath != null && !classpath.isEmpty()) {
-            args.add("-classpath");
-            args.add(classpath);
-        }
+        args.addAll(classpath.args("-classpath"));
 
-        if (sourcepath != null && !sourcepath.isEmpty()) {
-            args.add("-sourcepath");
-            args.add(sourcepath);
-        }
+        args.addAll(sourcepath.args("-sourcepath"));
 
         // ECJ properties file support - this is the key feature
         if (propertiesFile != null) {

@@ -157,7 +157,8 @@ public class CompilerMojoTest {
 
     @Test
     public void testBuildJavacOptions() throws Exception {
-        List<String> options = mojo.buildJavacOptions("/some/classpath.jar", "/some/sourcepath", outputDir);
+        List<String> options = mojo.buildJavacOptions(
+                ClassPath.of("/some/classpath.jar"), ClassPath.of("/some/sourcepath"), outputDir);
 
         assertTrue(options.contains("-source"));
         assertTrue(options.contains("1.8"));
@@ -177,7 +178,7 @@ public class CompilerMojoTest {
         setField(mojo, "showWarnings", true);
         setField(mojo, "showDeprecation", true);
 
-        List<String> options = mojo.buildJavacOptions("/some/classpath.jar", "", outputDir);
+        List<String> options = mojo.buildJavacOptions(ClassPath.of("/some/classpath.jar"), ClassPath.empty(), outputDir);
         assertFalse(options.contains("-nowarn"));
         assertTrue(options.contains("-deprecation"));
     }
@@ -186,7 +187,7 @@ public class CompilerMojoTest {
     public void testBuildJavacOptionsWithCompilerArguments() throws Exception {
         setField(mojo, "compilerArguments", Arrays.asList("-Xlint:all", "-verbose"));
 
-        List<String> options = mojo.buildJavacOptions("/some/classpath.jar", "", outputDir);
+        List<String> options = mojo.buildJavacOptions(ClassPath.of("/some/classpath.jar"), ClassPath.empty(), outputDir);
         assertTrue(options.contains("-Xlint:all"));
         assertTrue(options.contains("-verbose"));
     }
@@ -201,8 +202,8 @@ public class CompilerMojoTest {
                 new File(sourceDir, "Hello.java"),
                 new File(sourceDir, "World.java"));
 
-        List<String> args = mojo.buildEcjArguments(sourceFiles, "/some/classpath.jar",
-                "/some/sourcepath", outputDir);
+        List<String> args = mojo.buildEcjArguments(sourceFiles, ClassPath.of("/some/classpath.jar"),
+                ClassPath.of("/some/sourcepath"), outputDir);
 
         assertTrue(args.contains("-source"));
         assertTrue(args.contains("1.8"));
@@ -223,7 +224,8 @@ public class CompilerMojoTest {
     @Test
     public void testBuildEcjArgumentsNoProperties() throws Exception {
         List<File> sourceFiles = Arrays.asList(new File(sourceDir, "Hello.java"));
-        List<String> args = mojo.buildEcjArguments(sourceFiles, "/some/classpath.jar", "", outputDir);
+        List<String> args = mojo.buildEcjArguments(sourceFiles, ClassPath.of("/some/classpath.jar"),
+                ClassPath.empty(), outputDir);
 
         assertFalse(args.contains("-properties"));
     }
@@ -233,7 +235,8 @@ public class CompilerMojoTest {
         setField(mojo, "propertiesFile", new File("/nonexistent/file.properties"));
 
         List<File> sourceFiles = Arrays.asList(new File(sourceDir, "Hello.java"));
-        List<String> args = mojo.buildEcjArguments(sourceFiles, "/some/classpath.jar", "", outputDir);
+        List<String> args = mojo.buildEcjArguments(sourceFiles, ClassPath.of("/some/classpath.jar"),
+                ClassPath.empty(), outputDir);
 
         assertFalse(args.contains("-properties"));
     }
@@ -282,7 +285,7 @@ public class CompilerMojoTest {
 
     @Test
     public void testBuildJavacOptionsEmptyClasspath() throws Exception {
-        List<String> options = mojo.buildJavacOptions("", "", outputDir);
+        List<String> options = mojo.buildJavacOptions(ClassPath.empty(), ClassPath.empty(), outputDir);
         assertFalse(options.contains("-classpath"));
     }
 
@@ -290,7 +293,7 @@ public class CompilerMojoTest {
     public void testBuildJavacOptionsNullSourceTarget() throws Exception {
         setField(mojo, "source", null);
         setField(mojo, "target", null);
-        List<String> options = mojo.buildJavacOptions("/cp", "", outputDir);
+        List<String> options = mojo.buildJavacOptions(ClassPath.of("/cp"), ClassPath.empty(), outputDir);
         assertFalse(options.contains("-source"));
         assertFalse(options.contains("-target"));
     }
@@ -354,9 +357,9 @@ public class CompilerMojoTest {
     @Test
     public void testBuildSourcepath() throws Exception {
         List<String> dirs = Arrays.asList("/path/a", "/path/b");
-        String sourcepath = mojo.buildSourcepath(dirs);
+        ClassPath sourcepath = mojo.buildSourcepath(dirs);
         String sep = System.getProperty("path.separator");
-        assertEquals("/path/a" + sep + "/path/b", sourcepath);
+        assertEquals("/path/a" + sep + "/path/b", sourcepath.toString());
     }
 
     private void createFile(File file, String content) throws IOException {

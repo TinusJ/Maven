@@ -130,8 +130,8 @@ public class ClasspathMojo extends AbstractMojo {
 
         // Write classpath entries to file
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile))) {
-            String separator = System.getProperty("path.separator");
-            writer.write(String.join(separator, classpathEntries));
+            ClassPath classPath = ClassPath.of(classpathEntries);
+            writer.write(classPath.toString());
             getLog().info("Classpath file written to: " + outputFile.getAbsolutePath());
             getLog().info("Total classpath entries: " + classpathEntries.size());
         } catch (IOException e) {
